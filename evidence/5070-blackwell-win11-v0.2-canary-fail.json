@@ -1,0 +1,58 @@
+{
+  "tool": "headroom",
+  "collector": "webgpu-page",
+  "version": "0.2.0",
+  "ts": "2026-07-19T22:32:14.182Z",
+  "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+  "device": {
+    "vendor": "nvidia",
+    "architecture": "blackwell",
+    "device": "",
+    "description": "",
+    "subgroups": true,
+    "subgroupMinSize": 32,
+    "subgroupMaxSize": 128,
+    "maxStorageBufferBindingSize": 134217728,
+    "maxBufferSize": 268435456
+  },
+  "shapes": { "M": 4096, "K": 8192, "triadBytes": 67108864, "wBytes": 134217728 },
+  "method": {
+    "timing": "wall-clock amortized blocks, median of 5",
+    "gate": "FP64 reference, rel err < 0.001 before any timing",
+    "fills": "deterministic hash-derived, CPU-regenerable"
+  },
+  "score": {
+    "readGBps": 588.6243581147659,
+    "copyGBps": 531.3926373877551,
+    "triadGBps": 545.0549198048781,
+    "bestGemvGBps": 589.4643506482145,
+    "bestGemvName": "gemv vec4",
+    "efficiency": 1.0014270434477752,
+    "canary": "FAIL",
+    "canaryV2": "REPRODUCED",
+    "projections": [
+      { "name": "gemma 4 e2b qat", "artifactBytes": 2458111846, "activeBytes": 805239102, "activeEst": false, "derived": true, "tokLo": 730.9932623152296, "tokHi": 730.9932623152296 },
+      { "name": "8b class q4", "artifactBytes": 4700000000, "activeBytes": 4700000000, "activeEst": false, "derived": false, "tokLo": 125.23922513080124, "tokHi": 125.23922513080124 },
+      { "name": "bonsai 27b 1-bit", "artifactBytes": 3800000000, "activeBytes": 3800000000, "activeEst": false, "derived": false, "tokLo": 154.9011468723068, "tokHi": 154.9011468723068 }
+    ]
+  },
+  "receipts": [
+    { "probe": "device", "result": "nvidia · blackwell", "gate": "n/a" },
+    { "probe": "deterministic fill", "result": "max rel err 0.0e+0", "gate": "PASS" },
+    { "probe": "fp64 reference", "result": "34,554,435 values, 170 ms", "gate": "n/a" },
+    { "probe": "copy bandwidth", "result": "531 GB/s", "bytes": 134217728, "timing": "194×5 med 0.253 ms", "gate": "n/a" },
+    { "probe": "triad (C=A+sB)", "result": "545 GB/s", "bytes": 201326592, "timing": "222×5 med 0.369 ms", "gate": "n/a" },
+    { "probe": "read ceiling ★", "result": "589 GB/s", "bytes": 134217728, "timing": "207×5 amortized, med 0.228 ms", "gate": "PASS (rel 2.4e-7), re-verified post-timing" },
+    { "probe": "gemv naive", "result": "155 GB/s (26% of read ceiling)", "bytes": 134266880, "timing": "128×5 amortized, med 0.867 ms", "gate": "PASS (rel 1.4e-5), re-verified post-timing" },
+    { "probe": "gemv coalesced", "result": "539 GB/s (92% of read ceiling)", "bytes": 134266880, "timing": "167×5 amortized, med 0.249 ms", "gate": "PASS (rel 1.4e-6), re-verified post-timing" },
+    { "probe": "gemv vec4", "result": "589 GB/s (100% of read ceiling)", "bytes": 134266880, "timing": "162×5 amortized, med 0.228 ms", "gate": "PASS (rel 1.6e-6), re-verified post-timing" },
+    { "probe": "gemv multirow", "result": "560 GB/s (95% of read ceiling)", "bytes": 134266880, "timing": "207×5 amortized, med 0.240 ms", "gate": "PASS (rel 1.2e-6), re-verified post-timing" },
+    { "probe": "gemv subgroup", "result": "578 GB/s (98% of read ceiling)", "bytes": 134266880, "timing": "273×5 amortized, med 0.232 ms", "gate": "PASS (rel 8.9e-7), re-verified post-timing" },
+    { "probe": "canary guarded (control)", "result": "rel err 2.76e-8 (31251 slots)", "gate": "PASS" },
+    { "probe": "canary bare (non-uniform call)", "result": "rejected by compiler: Error while parsing WGSL: :23:13 error: 'subgroupAdd' must only be called from subgroup uniform control flow", "gate": "BLOCKED — this browser refuses the pattern class" },
+    { "probe": "canary legacy two-level (engine shape)", "result": "rejected by compiler: Error while parsing WGSL: :32:13 error: 'subgroupAdd' must only be called from subgroup uniform control flow", "gate": "BLOCKED — this browser refuses the pattern class" },
+    { "probe": "canary v2 bare (engine shape)", "result": "20/20 trials wrong, max rel 1.67e-1", "gate": "FAIL — live corruption of the shipped reduce shape" },
+    { "probe": "canary v2 butterfly (control)", "result": "0/20 trials wrong, max rel 5.56e-7", "gate": "PASS" },
+    { "probe": "tensor manifest · gemma 4 e2b qat", "result": "streams 0.81 GB/token · gathers 1.31 GB · non-text 0.34 GB (2780 tensors @ pinned rev)", "gate": "DERIVED from safetensors header" }
+  ]
+}

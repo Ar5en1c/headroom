@@ -38,3 +38,22 @@ post-timing; zero anomalies, zero uncaptured WebGPU errors.
    laptop. Medians of 5 within a run; treat cross-run deltas <10% as noise.
 
 Files: `5070-blackwell-win11.json`, `m1-pages.json`, `m1-localhost.json`.
+
+## v0.2 canary evidence (2026-07-19, same day)
+
+`5070-blackwell-win11-v0.2-canary-fail.json` — the headline receipt. Canary v2
+runs the exact reduce shape that shipped in real in-browser LLM engines
+(`subgroupAdd` after a lane-divergent store with an earlier reduction result
+live across it — uniform per static analysis, so Chrome 150's compiler accepts
+it). On RTX 5070 (Blackwell, Chrome 150 stable, Windows 11):
+
+- **bare engine shape: 20/20 trials WRONG, max relative error 1.67×10⁻¹**
+- butterfly control (`subgroupShuffleXor`): 0/20 wrong, max rel 5.56×10⁻⁷
+- guarded v1 control: PASS (2.76×10⁻⁸) · naive v1 variants: rejected by compiler
+
+Same run on Apple M1: 0/20 wrong on both variants ("engine shape verified").
+Conclusion: the silent-corruption class found in July 2026 is **still live on
+current stable Chrome on NVIDIA/D3D12** — static uniformity analysis blocks the
+naive syntax but cannot see this shape, and only behavioral testing catches it.
+Also in this run: read ceiling 589 GB/s, vec4 GEMV at 100.0% of it, E2B
+ceiling 731 tok/s, `subgroupMaxSize: 128` reported by the adapter.
