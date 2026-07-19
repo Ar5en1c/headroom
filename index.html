@@ -1197,7 +1197,7 @@ function drawSharePNG() {
 /* ---------- receipt JSON ---------- */
 function receiptJSON() {
   return JSON.stringify({
-    tool: 'headroom', version: VERSION, ts: new Date().toISOString(),
+    tool: 'headroom', collector: 'webgpu-page', version: VERSION, ts: new Date().toISOString(),
     ua: navigator.userAgent, device: state.deviceInfo, shapes: state.shapes,
     method: { timing: 'wall-clock amortized blocks, median of ' + REPEATS, gate: 'FP64 reference, rel err < ' + REL_TOL + ' before any timing', fills: 'deterministic hash-derived, CPU-regenerable' },
     score: state.score, receipts: state.receipts,
