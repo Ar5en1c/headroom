@@ -208,8 +208,17 @@
         <button class="ghost" id="jsonbtn">download JSON receipt</button>
         <button class="ghost" id="copybtn">copy JSON receipt</button>
         <button class="ghost" id="againbtn">run again</button>
+        <button class="ghost" id="importbtn">import receipt (json)</button>
+        <input type="file" id="importfile" accept="application/json,.json" multiple hidden>
         <p class="note">Projections are ceiling bands — measured read bandwidth ÷ bytes touched per token. The low bound assumes the full artifact streams every token; the high bound streams only the active core (per-layer-embedding models gather the rest). Real engines land inside the band; how close to the top is kernel quality — see methodology for the M1 and RTX 5070 validations.</p>
       </div>
+    </div>
+    <div id="imports" hidden>
+      <h3 style="font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--edge);padding-bottom:6px;margin-top:34px;">Imported receipts — other collectors vs this device's ceiling</h3>
+      <div class="rtable-wrap"><table class="rtable" id="itable">
+        <thead><tr><th>collector</th><th>what ran</th><th>headline</th><th>vs this run</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
     </div>
     <div id="receipts">
       <h3>Receipts — every number, its method</h3>
@@ -230,7 +239,7 @@
     <p><b>The premise.</b> Batch-1 LLM decode is memory-bound: every generated token must stream the weights it touches through the GPU once. Your tokens/s ceiling is therefore <b>memory bandwidth ÷ bytes touched per token</b>. Headroom measures that bandwidth three independent ways (buffer copy, triad read-write, and a pure-read reduction — the GEMV-shaped one), then runs a from-scratch GEMV ladder with deterministic synthetic weights to show how much of the ceiling real kernels reach on your device. Synthetic weights are valid because streaming time doesn't depend on the values — only correctness checking does, and the hash-derived fill lets an FP64 CPU reference verify every kernel before it's timed.</p>
     <p><b>The denominator is derived, not guessed.</b> Headroom range-fetches the model's safetensors header (~0.4 MB of public metadata, from a <em>pinned</em> revision — never a moving main) and classifies every tensor for text decode. For Gemma 4 E2B QAT (2.46 GB artifact, 2,780 tensors): <b>0.81 GB streams every token</b> (transformer layers 0.68 + lm_head 0.10 + per-layer projection 0.03), 1.31 GB of embedding tables is <em>gathered</em> one row per token, and 0.34 GB of vision/audio towers is never touched in text decode. Ceilings are quoted at empty context — KV-cache reads grow with context length and lower the real ceiling.</p>
     <p><b>Validated against real engines we measured ourselves</b> (full receipts in <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence">evidence/</a>). An RTX 5070 measures <b>577 GB/s</b> here — 86% of its 672 GB/s GDDR7 spec, through a browser tab — giving an E2B ceiling of ≈717 tok/s; Xenova's engine decodes ~217 tok/s on that machine (30% of ceiling): streaming the weights needs only 1.4 ms of each 4.6 ms token, so ~70% of the budget is launch overhead and non-GEMV work. An Apple M1 measures 51–56 GB/s (74–82% of spec) → ceiling ≈63–69 tok/s; the same engine does 30–40 (~50%). Two machines, one conclusion: today's in-browser engines are <b>launch-overhead-bound, not bandwidth-bound</b> — the hardware has 2–3× headroom, which is the point of measuring it. Bonus finding from the same runs: uncoalesced access keeps ~50% of ceiling on Apple's unified memory but collapses to 27% on discrete GDDR7 — coalescing is worth 3.7× on Blackwell. Expect ±10% between sessions on busy machines (we saw 50.7 vs 55.8 GB/s minutes apart on one laptop); medians of 5 are quoted within a run. If a card's number ever disagrees with reality, that disagreement is a finding — file it.</p>
-    <p><b>One honest caveat on BLOCKED.</b> The canary's risky variants are the <em>naive</em> non-uniform shapes, and current Chrome rejects them at compile time on every platform we've run. The engine code that actually shipped in July was an analysis-clean shape that compiled fine and still mis-executed on NVIDIA drivers at runtime — static analysis can't catch it. Replicating that exact shape is canary v2; until then, BLOCKED means "this browser refuses the naive class," not "engines here are proven safe."</p>
+    <p><b>Canary v2 — the shape that actually shipped.</b> The v1 variants are the naive non-uniform shapes (current Chrome rejects them at compile time — reported as BLOCKED). Canary v2 replicates, verbatim, the analysis-clean shape from the July engine: <code>subgroupAdd</code> after a lane-divergent store with an earlier reduction result live across it. It compiles clean everywhere, runs 20 trials against an FP64 reference with a <code>subgroupShuffleXor</code> butterfly as the correct-everywhere control, and requires a 32-wide minimum subgroup (skipped honestly elsewhere). On NVIDIA/D3D12 this shape still returns wrong sums on current Chrome while the butterfly passes — a live, silent correctness bug the card will show as CANARY FAIL. A PASS from v2 means the engine reduce shape was <em>behaviorally verified</em> on your stack, not just assumed.</p>
     <p><b>The rules.</b> Deterministic inputs (hash-derived, identically regenerable on CPU). Every kernel is checked against an FP64 CPU reference before it is timed — a kernel that fails correctness gets no performance number. Timing is wall-clock over large amortized dispatch blocks, median of 5 repeats, on your actual compositor-loaded browser — honest conditions, honestly labeled. If your machine hits 70% of its ceiling, the card says 70%.</p>
     <p><b>The canary.</b> Some GPU driver/compiler stacks mis-execute subgroup reductions under non-uniform control flow — the pattern class that shipped in real in-browser LLM engines and produced silent garbage on NVIDIA/Windows (found and fixed by this project's author, July 2026). The canary runs a guarded control (must pass everywhere) plus two risky variants, each with three possible outcomes: <b>PASS</b> (your driver tolerates the pattern), <b>FAIL</b> (your stack corrupts it — engines beware), or <b>BLOCKED</b> (your browser's compiler now rejects the class outright, which is the safe modern behavior). A ceiling projection assumes every token streams the full artifact; per-layer-embedding and MoE architectures can beat that line honestly.</p>
   </section>
@@ -249,7 +258,7 @@
  *  wall-amortized blocks, median of 5. MIT.
  * ============================================================ */
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const $ = (id) => document.getElementById(id);
 
 /* ---------- deterministic values: identical in WGSL + JS ---------- */
@@ -565,6 +574,66 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation
   }
 }`;
 
+// canary v2: the EXACT shipped engine shape from the July repro (crbug 535116173) —
+// every reduce call is uniform per analysis (only the STORE is lane-guarded), so it
+// compiles clean on current Tint yet miscompiles on NVIDIA/D3D12: subgroupAdd after
+// a lane-divergent store with an earlier reduction result live across it.
+// The subgroupShuffleXor butterfly is the correct-everywhere control.
+const CAN2_K = 512, CAN2_WG = 32, CAN2_ROWS = 4, CAN2_TRIALS = 20;
+const CAN2_REDUCE_BARE = `fn reduce(value: f32) -> f32 {
+  return subgroupAdd(value);
+}`;
+const CAN2_REDUCE_BFLY = `fn reduce(value: f32) -> f32 {
+  var x = value;
+  x = x + subgroupShuffleXor(x, 1u);
+  x = x + subgroupShuffleXor(x, 2u);
+  x = x + subgroupShuffleXor(x, 4u);
+  x = x + subgroupShuffleXor(x, 8u);
+  x = x + subgroupShuffleXor(x, 16u);
+  return x;
+}`;
+const SH_CAN2 = (reduceFn) => `enable subgroups;
+@group(0) @binding(0) var<storage, read> xin: array<f32>;
+@group(0) @binding(1) var<storage, read> win: array<f32>;
+@group(0) @binding(2) var<storage, read_write> out: array<f32>;
+
+const K: u32 = ${CAN2_K}u;
+const WG: u32 = ${CAN2_WG}u;
+const OUT_ROWS: u32 = ${CAN2_ROWS}u;
+
+${reduceFn}
+
+@compute @workgroup_size(32, 1, 1)
+fn main(@builtin(workgroup_id) wg: vec3<u32>,
+        @builtin(local_invocation_id) lid: vec3<u32>) {
+  let rowBase = wg.x * 2u;
+  if (rowBase >= OUT_ROWS) { return; }
+  let tid = lid.x;
+  var sumA_0: f32 = 0.0; var sumQ_0_0: f32 = 0.0; var sumQ_0_1: f32 = 0.0;
+  var sumA_1: f32 = 0.0; var sumQ_1_0: f32 = 0.0; var sumQ_1_1: f32 = 0.0;
+  var k: u32 = tid;
+  loop {
+    if (k >= K) { break; }
+    let w0 = win[(rowBase + 0u) * K + k];
+    let w1 = win[(rowBase + 1u) * K + k];
+    let a0 = xin[0u * K + k];
+    sumA_0 = sumA_0 + a0; sumQ_0_0 = sumQ_0_0 + w0 * a0; sumQ_0_1 = sumQ_0_1 + w1 * a0;
+    let a1 = xin[1u * K + k];
+    sumA_1 = sumA_1 + a1; sumQ_1_0 = sumQ_1_0 + w0 * a1; sumQ_1_1 = sumQ_1_1 + w1 * a1;
+    k = k + WG;
+  }
+  {
+    let rA0 = reduce(sumA_0);
+    { let r = reduce(sumQ_0_0); if (tid == 0u) { out[rowBase + 0u] = r - 8.0 * rA0; } }
+    { let r = reduce(sumQ_0_1); if (tid == 0u) { out[rowBase + 1u] = r - 8.0 * rA0; } }
+  }
+  {
+    let rA1 = reduce(sumA_1);
+    { let r = reduce(sumQ_1_0); if (tid == 0u) { out[OUT_ROWS + rowBase + 0u] = r - 8.0 * rA1; } }
+    { let r = reduce(sumQ_1_1); if (tid == 0u) { out[OUT_ROWS + rowBase + 1u] = r - 8.0 * rA1; } }
+  }
+}`;
+
 /* ---------- suite configuration ---------- */
 const SEED_W = 0xA11CE001, SEED_X = 0xA11CE002, SEED_C = 0xA11CE003;
 // bytes: full artifact (every-byte-streams floor-ceiling). active: bytes actually
@@ -620,6 +689,7 @@ async function initGPU() {
     vendor: info.vendor || '', architecture: info.architecture || '',
     device: info.device || '', description: info.description || '',
     subgroups: hasSubgroups,
+    subgroupMinSize: info.subgroupMinSize, subgroupMaxSize: info.subgroupMaxSize,
     maxStorageBufferBindingSize: device.limits.maxStorageBufferBindingSize,
     maxBufferSize: device.limits.maxBufferSize,
   };
@@ -982,7 +1052,7 @@ async function runSuite() {
 
   /* --- canary --- */
   status('subgroup canary…');
-  let canaryState = 'NA';
+  let canaryState = 'NA', canaryV2 = 'NA';
   if (!hasSubgroups) {
     setProbe('can', 0, '<span class="na">N/A — no subgroups</span>');
     receipt('subgroup canary', { result: 'feature absent', gate: 'n/a' });
@@ -1032,15 +1102,72 @@ async function runSuite() {
       else if (r.err < CAN_TOL) { outcomes.push('PASS'); receipt(v.name, { result: 'rel err ' + r.err.toExponential(2) + ' (' + r.nz + ' slots)', gate: 'PASS — driver tolerates the pattern' }); }
       else { outcomes.push('FAIL'); receipt(v.name, { result: 'rel err ' + r.err.toExponential(2) + ' (' + r.nz + ' slots)', gate: 'FAIL — this stack corrupts the pattern' }); }
     }
+    /* --- canary v2: the exact shipped engine shape, 20 trials, butterfly control --- */
+    status('subgroup canary v2 — engine shape, ' + CAN2_TRIALS + ' trials…');
+    canaryV2 = 'SKIP';
+    const minSg = deviceInfo.subgroupMinSize;
+    if (minSg !== undefined && minSg !== 32) {
+      receipt('canary v2 (engine shape)', { result: 'skipped — needs a 32-wide minimum subgroup (this adapter: ' + minSg + '); the 32-lane reference would mismatch legitimately', gate: 'n/a' });
+    } else {
+      const bBare2 = await mkScoped(SH_CAN2(CAN2_REDUCE_BARE));
+      const bBfly2 = await mkScoped(SH_CAN2(CAN2_REDUCE_BFLY));
+      if (bBare2.rejected || bBfly2.rejected) {
+        canaryV2 = 'BLOCKED';
+        receipt('canary v2 (engine shape)', { result: 'rejected by compiler: ' + (bBare2.rejected || bBfly2.rejected), gate: 'BLOCKED — this browser refuses even the analysis-clean shape' });
+      } else {
+        const xF2 = new Float32Array(2 * CAN2_K);
+        for (let i = 0; i < xF2.length; i++) xF2[i] = detVal(i, 0xC0FFEE01);
+        const wF2 = new Float32Array(CAN2_ROWS * CAN2_K);
+        for (let i = 0; i < wF2.length; i++) wF2[i] = detVal(i, 0xC0FFEE02);
+        const ref2 = new Float64Array(2 * CAN2_ROWS);
+        for (let m = 0; m < 2; m++) for (let o = 0; o < CAN2_ROWS; o++) {
+          let q = 0, sa = 0;
+          for (let k = 0; k < CAN2_K; k++) { const a = xF2[m * CAN2_K + k]; q += wF2[o * CAN2_K + k] * a; sa += a; }
+          ref2[m * CAN2_ROWS + o] = q - 8 * sa;
+        }
+        const U2 = GPUBufferUsage;
+        const bx2 = device.createBuffer({ size: xF2.byteLength, usage: U2.STORAGE | U2.COPY_DST });
+        const bw2 = device.createBuffer({ size: wF2.byteLength, usage: U2.STORAGE | U2.COPY_DST });
+        const bo2 = device.createBuffer({ size: 2 * CAN2_ROWS * 4, usage: U2.STORAGE | U2.COPY_SRC | U2.COPY_DST });
+        device.queue.writeBuffer(bx2, 0, xF2);
+        device.queue.writeBuffer(bw2, 0, wF2);
+        const trial2 = async (pipe) => {
+          const encC = device.createCommandEncoder(); encC.clearBuffer(bo2); device.queue.submit([encC.finish()]);
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginComputePass(); pass.setPipeline(pipe);
+          pass.setBindGroup(0, bg(pipe, [bx2, bw2, bo2]));
+          pass.dispatchWorkgroups(2); pass.end();
+          device.queue.submit([enc.finish()]);
+          const got = await readBack(device, bo2, 2 * CAN2_ROWS * 4);
+          let maxRel = 0;
+          for (let i = 0; i < ref2.length; i++) maxRel = Math.max(maxRel, relErr(ref2[i], got[i]));
+          return maxRel;
+        };
+        let bareWrong = 0, bflyWrong = 0, bareMax = 0, bflyMax = 0;
+        for (let t = 0; t < CAN2_TRIALS; t++) {
+          const rb = await trial2(bBare2.pipe); if (rb > REL_TOL) bareWrong++; bareMax = Math.max(bareMax, rb);
+          const rf = await trial2(bBfly2.pipe); if (rf > REL_TOL) bflyWrong++; bflyMax = Math.max(bflyMax, rf);
+        }
+        [bx2, bw2, bo2].forEach(b => b.destroy());
+        if (bareWrong > 0 && bflyWrong === 0) canaryV2 = 'REPRODUCED';
+        else if (bareWrong === 0 && bflyWrong === 0) canaryV2 = 'PASS';
+        else canaryV2 = 'ANOMALY';
+        receipt('canary v2 bare (engine shape)', { result: bareWrong + '/' + CAN2_TRIALS + ' trials wrong, max rel ' + bareMax.toExponential(2), gate: bareWrong > 0 ? 'FAIL — live corruption of the shipped reduce shape' : 'PASS' });
+        receipt('canary v2 butterfly (control)', { result: bflyWrong + '/' + CAN2_TRIALS + ' trials wrong, max rel ' + bflyMax.toExponential(2), gate: bflyWrong === 0 ? 'PASS' : 'FAIL — control failed, no verdict' });
+      }
+    }
+
     if (guard.nz === 0) canaryState = 'ANOMALY';
     else if (!guardOK) canaryState = 'SUITE-ERROR';
-    else if (outcomes.includes('FAIL')) canaryState = 'FAIL';
+    else if (canaryV2 === 'REPRODUCED' || outcomes.includes('FAIL')) canaryState = 'FAIL';
+    else if (canaryV2 === 'ANOMALY') canaryState = 'ANOMALY';
+    else if (canaryV2 === 'PASS') canaryState = 'PASS';
     else if (outcomes.includes('PASS')) canaryState = 'PASS';
     else if (outcomes.length && outcomes.every(o => o === 'REJECTED')) canaryState = 'BLOCKED';
     else canaryState = 'ANOMALY';
-    if (canaryState === 'PASS') setProbe('can', 1, '<span class="ok">PASS — tolerated</span>');
+    if (canaryState === 'PASS') setProbe('can', 1, '<span class="ok">PASS' + (canaryV2 === 'PASS' ? ' — engine shape verified' : ' — tolerated') + '</span>');
     else if (canaryState === 'BLOCKED') setProbe('can', 1, '<span class="ok">BLOCKED BY COMPILER (safe)</span>');
-    else if (canaryState === 'FAIL') setProbe('can', 1, '<span class="bad">FAIL — engines beware</span>', 'bad');
+    else if (canaryState === 'FAIL') setProbe('can', 1, '<span class="bad">FAIL — ' + (canaryV2 === 'REPRODUCED' ? 'engine shape corrupts here' : 'engines beware') + '</span>', 'bad');
     else if (canaryState === 'ANOMALY') setProbe('can', 0, '<span class="na">INCONCLUSIVE</span>');
     else setProbe('can', 1, '<span class="bad">CONTROL FAILED</span>', 'bad');
   }
@@ -1067,7 +1194,7 @@ async function runSuite() {
   state.score = {
     readGBps, copyGBps: state.copyGBps, triadGBps: state.triadGBps,
     bestGemvGBps: bestGemv, bestGemvName: bestName, efficiency: eff,
-    canary: canaryState,
+    canary: canaryState, canaryV2,
     projections: MODELS.map(m => ({
       name: m.name, artifactBytes: m.bytes, activeBytes: m.active,
       activeEst: !!m.activeEst, derived: !!m.derived,
@@ -1106,9 +1233,9 @@ function renderResult() {
   $('c-ceil').textContent = fmtGB(s.readGBps) + ' GB/s read';
   for (let i = 0; i < MODELS.length; i++) $(MODELS[i].id).textContent = '≈' + band(s.projections[i]) + ' tok/s';
   const stamp = $('c-stamp'), line = $('c-canaryline');
-  if (s.canary === 'PASS') { stamp.textContent = 'CANARY PASS'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: PASS — driver tolerates the legacy pattern'; }
+  if (s.canary === 'PASS') { stamp.textContent = 'CANARY PASS'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: PASS' + (s.canaryV2 === 'PASS' ? ' — engine reduce shape verified correct here' : ' — driver tolerates the legacy pattern'); }
   else if (s.canary === 'BLOCKED') { stamp.textContent = 'CANARY SAFE'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: pattern class blocked by this browser\'s compiler'; }
-  else if (s.canary === 'FAIL') { stamp.textContent = 'CANARY FAIL'; stamp.className = 'canary-stamp fail'; line.textContent = 'SUBGROUP CANARY: FAIL — in-browser engines may output garbage here'; }
+  else if (s.canary === 'FAIL') { stamp.textContent = 'CANARY FAIL'; stamp.className = 'canary-stamp fail'; line.textContent = 'SUBGROUP CANARY: FAIL — ' + (s.canaryV2 === 'REPRODUCED' ? 'the shipped engine reduce shape corrupts on this stack' : 'in-browser engines may output garbage here'); }
   else { stamp.textContent = 'CANARY N/A'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: ' + (s.canary === 'NA' ? 'N/A (no subgroups feature)' : s.canary === 'ANOMALY' ? 'INCONCLUSIVE (dispatch dropped)' : 'CONTROL FAILED'); }
   // receipts table
   const tb = $('rtable').querySelector('tbody');
@@ -1233,6 +1360,43 @@ $('jsonbtn').addEventListener('click', () => {
   a.download = 'headroom-receipt.json';
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 });
+/* ---------- receipt import: any collector's JSON, rendered against this run ---------- */
+function renderImportedReceipt(j, filename) {
+  const tb = $('itable').querySelector('tbody');
+  const myRead = state.score && state.score.readGBps;
+  let what = '', headline = '', vs = '—';
+  const collector = j.collector || j.tool || '?';
+  if (j.collector === 'ollama') {
+    what = (j.device && j.device.model) || 'model';
+    const d = j.score && j.score.decode_toks_median;
+    headline = d != null ? d + ' tok/s decode (median)' : '(no decode score)';
+    const mb = j.device && j.device.modelBytes;
+    if (myRead && mb && d) vs = Math.round(100 * d / (myRead * 1e9 / mb)) + '% of this device\'s ceiling for that model';
+    else if (!mb) vs = 'model bytes unknown';
+  } else if (j.collector === 'webgpu-page') {
+    const dv = j.device || {};
+    what = [dv.vendor, dv.architecture].filter(Boolean).join(' · ') || 'device';
+    const r = j.score && j.score.readGBps;
+    headline = r != null ? fmtGB(r) + ' GB/s read · best ' + (j.score.bestGemvName || '') : '(no score)';
+    if (myRead && r) vs = (r / myRead).toFixed(2) + '× this device\'s read ceiling';
+  } else {
+    what = filename || '';
+    headline = '(unrecognized schema — tool: ' + collector + ')';
+  }
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + collector + '</td><td>' + what + '</td><td>' + headline + '</td><td>' + vs + '</td>';
+  tb.appendChild(tr);
+  $('imports').hidden = false;
+}
+$('importbtn').addEventListener('click', () => $('importfile').click());
+$('importfile').addEventListener('change', async (e) => {
+  for (const f of e.target.files) {
+    try { renderImportedReceipt(JSON.parse(await f.text()), f.name); }
+    catch (err) { renderImportedReceipt({ collector: 'parse error' }, f.name + ' — ' + String(err.message).slice(0, 60)); }
+  }
+  e.target.value = '';
+});
+
 $('copybtn').addEventListener('click', async () => {
   await navigator.clipboard.writeText(receiptJSON());
   $('copybtn').textContent = 'copied ✓';
