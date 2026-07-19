@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HEADROOM — how fast is your machine, really?</title>
 <meta name="description" content="A 30-second WebGPU test that measures your device's real memory-bandwidth ceiling for local AI, checks your driver for the subgroup bug, and tells you your tokens/s headroom. No model download. No data leaves your machine.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23101319'/%3E%3Ctext x='10' y='46' font-family='monospace' font-size='40' font-weight='700' fill='%23E8EAF0'%3EH%3C/text%3E%3Crect x='40' y='38' width='16' height='8' fill='%23FF5A3C'/%3E%3C/svg%3E">
+<meta property="og:title" content="HEADROOM — how fast is your machine, really?">
+<meta property="og:description" content="30-second WebGPU test: your device's real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary that catches the silent GPU corruption still live in current Chrome.">
+<meta property="og:image" content="https://ar5en1c.github.io/headroom/og-image.png">
+<meta property="og:url" content="https://ar5en1c.github.io/headroom/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="HEADROOM — how fast is your machine, really?">
+<meta name="twitter:description" content="30-second WebGPU test: your real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary for the silent GPU bug in current Chrome.">
+<meta name="twitter:image" content="https://ar5en1c.github.io/headroom/og-image.png">
 <style>
   :root {
     --bg: #E9E8E4; --grid: #DAD7CE; --panel: #F4F3EF; --edge: #C9C6BC;
@@ -201,7 +211,7 @@
           <tr><td>8b class q4 · ≈4.7 GB dense</td><td class="v" id="p-8b">—</td></tr>
           <tr><td>bonsai 27b 1-bit · 3.8 GB dense</td><td class="v" id="p-27b">—</td></tr>
         </table>
-        <div class="foot"><span id="c-canaryline">SUBGROUP CANARY: —</span><span>HEADROOM · v0.1</span></div>
+        <div class="foot"><span id="c-canaryline">SUBGROUP CANARY: —</span><span id="c-ver">HEADROOM</span></div>
       </div>
       <div class="actions">
         <button class="run" id="pngbtn">DOWNLOAD SHARE CARD (PNG)</button>
@@ -210,7 +220,7 @@
         <button class="ghost" id="againbtn">run again</button>
         <button class="ghost" id="importbtn">import receipt (json)</button>
         <input type="file" id="importfile" accept="application/json,.json" multiple hidden>
-        <p class="note">Projections are ceiling bands — measured read bandwidth ÷ bytes touched per token. The low bound assumes the full artifact streams every token; the high bound streams only the active core (per-layer-embedding models gather the rest). Real engines land inside the band; how close to the top is kernel quality — see methodology for the M1 and RTX 5070 validations.</p>
+        <p class="note">Projections are measured read bandwidth ÷ bytes touched per token, at empty context. When the tensor manifest derives (the default), bytes-per-token is exact: streamed core only, gathered embeddings and unused towers excluded. If derivation fails, the row falls back to an honest band (full-artifact floor → active-core estimate) and is labeled as such. Real engines land below the ceiling; the gap is engine overhead — see methodology for the M1 and RTX 5070 validations.</p>
       </div>
     </div>
     <div id="imports" hidden>
@@ -240,8 +250,15 @@
     <p><b>The denominator is derived, not guessed.</b> Headroom range-fetches the model's safetensors header (~0.4 MB of public metadata, from a <em>pinned</em> revision — never a moving main) and classifies every tensor for text decode. For Gemma 4 E2B QAT (2.46 GB artifact, 2,780 tensors): <b>0.81 GB streams every token</b> (transformer layers 0.68 + lm_head 0.10 + per-layer projection 0.03), 1.31 GB of embedding tables is <em>gathered</em> one row per token, and 0.34 GB of vision/audio towers is never touched in text decode. Ceilings are quoted at empty context — KV-cache reads grow with context length and lower the real ceiling.</p>
     <p><b>Validated against real engines we measured ourselves</b> (full receipts in <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence">evidence/</a>). An RTX 5070 measures <b>577 GB/s</b> here — 86% of its 672 GB/s GDDR7 spec, through a browser tab — giving an E2B ceiling of ≈717 tok/s; Xenova's engine decodes ~217 tok/s on that machine (30% of ceiling): streaming the weights needs only 1.4 ms of each 4.6 ms token, so ~70% of the budget is launch overhead and non-GEMV work. An Apple M1 measures 51–56 GB/s (74–82% of spec) → ceiling ≈63–69 tok/s; the same engine does 30–40 (~50%). Two machines, one conclusion: today's in-browser engines are <b>launch-overhead-bound, not bandwidth-bound</b> — the hardware has 2–3× headroom, which is the point of measuring it. Bonus finding from the same runs: uncoalesced access keeps ~50% of ceiling on Apple's unified memory but collapses to 27% on discrete GDDR7 — coalescing is worth 3.7× on Blackwell. Expect ±10% between sessions on busy machines (we saw 50.7 vs 55.8 GB/s minutes apart on one laptop); medians of 5 are quoted within a run. If a card's number ever disagrees with reality, that disagreement is a finding — file it.</p>
     <p><b>Canary v2 — the shape that actually shipped.</b> The v1 variants are the naive non-uniform shapes (current Chrome rejects them at compile time — reported as BLOCKED). Canary v2 replicates, verbatim, the analysis-clean shape from the July engine: <code>subgroupAdd</code> after a lane-divergent store with an earlier reduction result live across it. It compiles clean everywhere, runs 20 trials against an FP64 reference with a <code>subgroupShuffleXor</code> butterfly as the correct-everywhere control, and requires a 32-wide minimum subgroup (skipped honestly elsewhere). Verified live on 2026-07-19: an RTX 5070 (Blackwell) on stable Chrome 150 fails <b>20/20 trials with relative errors up to 1.7×10⁻¹</b> while the butterfly passes 20/20 (<a href="https://github.com/Ar5en1c/headroom/blob/main/evidence/5070-blackwell-win11-v0.2-canary-fail.json">receipt</a>) — a live, silent correctness bug that static analysis cannot see, shown on the card as CANARY FAIL. A PASS from v2 means the engine reduce shape was <em>behaviorally verified</em> on your stack, not just assumed.</p>
+    <h3 style="margin-top:34px;">Objections, answered</h3>
+    <p><b>"A GEMV can't hit 100% of a ceiling — your probe must be slow."</b> Three independent bandwidth probes are reported (copy, triad, pure-read); the ceiling is the read-shaped one, and a GEMV is ~pure-read too (it writes 16 KB per 128 MiB streamed). When a kernel lands a few percent <em>above</em> the probe, that's the probe's reduction overhead, the x-vector living in cache, and session variance — the receipts carry every raw number and the card just says "saturated." If our accounting were wrong, the FP64 gates would say so.</p>
+    <p><b>"Wall-clock timing without timestamp-query is amateur."</b> <code>timestamp-query</code> is quantized or absent in browsers depending on platform and flags. We time amortized blocks of ≥150 ms (auto-calibrated iteration counts) and take medians of five — timer resolution contributes &lt;0.1% error at that block size. Every receipt states the block size and repeat count, results are re-verified for correctness <em>after</em> timing, and a native CUDA companion study on the same silicon is the cross-check.</p>
+    <p><b>"Your buffers fit in cache."</b> The weight buffer is 128 MiB against a 48 MB L2 on the largest consumer GPU we've measured (and single-digit-MB SLCs elsewhere). Buffer sizes are in every receipt.</p>
+    <p><b>"Synthetic weights aren't a real model."</b> Streaming time doesn't depend on the values being streamed — only correctness checking does, and hash-derived fills give an FP64-checkable reference with zero download. We measure the <em>hardware ceiling</em> and validate real engines against it separately; both sides are receipted.</p>
+    <p><b>"The canary is just wide-subgroup semantics, not a bug."</b> No: the test gates on a 32-wide minimum subgroup, and the butterfly control runs <em>the same shuffle lanes in the same kernel shape</em> — it passing 20/20 proves the lane grouping is sane and the data is right; only the <code>subgroupAdd</code> lowering returns wrong sums, deterministically, against an FP64 reference. That's a miscompile, not a semantics gap.</p>
+    <p><b>"Which engines shipped this pattern?"</b> The shape is taken verbatim from the July 2026 post-mortem of a production in-browser LLM engine — root cause, upstream patch, and evidence are public in <a href="https://github.com/Ar5en1c/gemma4-webgpu-nvidia-subgroup-fix">the campaign repo</a>.</p>
     <p><b>The rules.</b> Deterministic inputs (hash-derived, identically regenerable on CPU). Every kernel is checked against an FP64 CPU reference before it is timed — a kernel that fails correctness gets no performance number. Timing is wall-clock over large amortized dispatch blocks, median of 5 repeats, on your actual compositor-loaded browser — honest conditions, honestly labeled. If your machine hits 70% of its ceiling, the card says 70%.</p>
-    <p><b>The canary.</b> Some GPU driver/compiler stacks mis-execute subgroup reductions under non-uniform control flow — the pattern class that shipped in real in-browser LLM engines and produced silent garbage on NVIDIA/Windows (found and fixed by this project's author, July 2026). The canary runs a guarded control (must pass everywhere) plus two risky variants, each with three possible outcomes: <b>PASS</b> (your driver tolerates the pattern), <b>FAIL</b> (your stack corrupts it — engines beware), or <b>BLOCKED</b> (your browser's compiler now rejects the class outright, which is the safe modern behavior). A ceiling projection assumes every token streams the full artifact; per-layer-embedding and MoE architectures can beat that line honestly.</p>
+    <p><b>Canary v1 — the naive tier.</b> Alongside v2, the original variants use the plainly non-uniform syntax from the same bug class. A guarded control must pass everywhere for the run to count; each risky variant reports <b>PASS</b> (your driver tolerates the pattern), <b>FAIL</b> (your stack corrupts it — engines beware), or <b>BLOCKED</b> (your browser's compiler rejects the class at compile time — the safe modern behavior, and what current Chrome does). v2 above exists precisely because BLOCKED here is not the end of the story: the shape that shipped was analysis-clean.</p>
   </section>
 
   <footer>
@@ -253,13 +270,14 @@
 <script>
 'use strict';
 /* ============================================================ *
- *  HEADROOM v0.1 — WebGPU bandwidth ceiling + GEMV ladder
+ *  HEADROOM — WebGPU bandwidth ceiling + GEMV ladder
  *  Method: deterministic fills, FP64 gate before timing,
  *  wall-amortized blocks, median of 5. MIT.
  * ============================================================ */
 
 const VERSION = '0.2.0';
 const $ = (id) => document.getElementById(id);
+$('c-ver').textContent = 'HEADROOM · v' + VERSION.split('.').slice(0, 2).join('.');
 
 /* ---------- deterministic values: identical in WGSL + JS ---------- */
 function hash32(x) {
@@ -1229,7 +1247,9 @@ function renderResult() {
   const effPct = Math.min(100, Math.round(s.efficiency * 100)); // meter clamps; label stays honest
   $('c-fill').style.width = effPct + '%';
   $('c-tick').style.left = effPct + '%';
-  $('c-eff').textContent = 'best kernel reaches ' + Math.round(s.efficiency * 100) + '% of read ceiling';
+  $('c-eff').textContent = s.efficiency >= 0.98
+    ? 'kernels saturate the measured read ceiling'
+    : 'best kernel reaches ' + Math.round(s.efficiency * 100) + '% of read ceiling';
   $('c-ceil').textContent = fmtGB(s.readGBps) + ' GB/s read';
   for (let i = 0; i < MODELS.length; i++) $(MODELS[i].id).textContent = '≈' + band(s.projections[i]) + ' tok/s';
   const stamp = $('c-stamp'), line = $('c-canaryline');
@@ -1253,9 +1273,10 @@ function renderResult() {
 }
 
 /* ---------- share PNG (1200×630, always graphite) ---------- */
-function drawSharePNG() {
+function drawSharePNG(scale, meta) {
   const s = state.score, d = state.deviceInfo;
-  const W = 1200, H = 630, dpr = 2;
+  const W = 1200, H = 630, dpr = scale || 2;
+  const platform = (meta && meta.platform) || navigator.platform || '';
   const cv = document.createElement('canvas');
   cv.width = W * dpr; cv.height = H * dpr;
   const g = cv.getContext('2d');
@@ -1281,15 +1302,16 @@ function drawSharePNG() {
   g.fillStyle = '#E8EAF0'; g.font = '600 26px system-ui, "Helvetica Neue", Arial, sans-serif';
   g.fillText(devName, 60, 140);
   g.fillStyle = '#8A90A0'; g.font = mono(14);
-  g.fillText((navigator.platform || '') + ' · webgpu · ' + new Date().toISOString().slice(0, 10), 60, 166);
+  g.fillText(platform + ' · webgpu · ' + new Date().toISOString().slice(0, 10), 60, 166);
   // big number — band: full-artifact floor to PLE-adjusted core-only bound
   const pj = s.projections[0];
-  const bigTxt = pj.tokHi > pj.tokLo * 1.02 ? Math.round(pj.tokLo) + '–' + Math.round(pj.tokHi) : String(Math.round(pj.tokLo));
+  const isBand = pj.tokHi > pj.tokLo * 1.02;
+  const bigTxt = isBand ? Math.round(pj.tokLo) + '–' + Math.round(pj.tokHi) : String(Math.round(pj.tokLo));
   g.fillStyle = '#E8EAF0'; g.font = mono(120, 700);
   g.fillText(bigTxt, 60, 320);
   const bw = g.measureText(bigTxt).width;
   g.fillStyle = '#8A90A0'; g.font = mono(34);
-  g.fillText('tok/s ceiling band', 60 + bw + 20, 320);
+  g.fillText(isBand ? 'tok/s ceiling band' : 'tok/s ceiling', 60 + bw + 20, 320);
   g.font = mono(15); g.fillStyle = '#8A90A0';
   g.fillText(pj.derived
     ? ('GEMMA 4 E2B · STREAMS ' + (pj.activeBytes / 1e9).toFixed(2) + ' GB/TOKEN (DERIVED FROM TENSOR MANIFEST) · EMPTY CONTEXT')
@@ -1301,7 +1323,9 @@ function drawSharePNG() {
   g.fillStyle = '#E8EAF0'; g.fillRect(mx + mw * Math.min(1, s.efficiency) - 1.5, my - 6, 3, mh + 12);
   g.fillStyle = '#8A90A0'; g.font = mono(14);
   g.fillText('0', mx, my + 44);
-  const effTxt = 'BEST KERNEL ' + Math.round(s.efficiency * 100) + '% OF READ CEILING (' + fmtGB(s.readGBps) + ' GB/s)';
+  const effTxt = s.efficiency >= 0.98
+    ? 'KERNELS SATURATE THE READ CEILING (' + fmtGB(s.readGBps) + ' GB/s)'
+    : 'BEST KERNEL ' + Math.round(s.efficiency * 100) + '% OF READ CEILING (' + fmtGB(s.readGBps) + ' GB/s)';
   g.fillText(effTxt, mx + mw / 2 - g.measureText(effTxt).width / 2, my + 44);
   const ceilTxt = 'CEILING';
   g.fillText(ceilTxt, mx + mw - g.measureText(ceilTxt).width, my + 44);
