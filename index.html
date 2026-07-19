@@ -165,7 +165,7 @@
   <section id="hero">
     <h1>How fast is your machine, <span class="dim">really?</span></h1>
     <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI — the number that decides your tokens/s. It also checks your GPU driver for the <b>subgroup bug</b> that makes some in-browser LLMs silently produce garbage.</p>
-    <p class="fine">No model download — the probes use synthetic weights. No account, no ads, no telemetry: measurements stay in your browser unless you share them. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
+    <p class="fine">No model download — the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes-per-token). No account, no ads, no telemetry: measurements stay in your browser unless you share them. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
     <div class="cta-row">
       <button class="run" id="runbtn">RUN THE TEST →</button>
       <button class="ghost" id="methbtn">methodology</button>
@@ -197,7 +197,7 @@
           <div class="mscale"><span>0</span><span id="c-eff">kernel efficiency —</span><span id="c-ceil">read ceiling —</span></div>
         </div>
         <table class="proj">
-          <tr><td>gemma 4 e2b qat · 2.46 GB (ple, ~1.05 GB/token est)</td><td class="v" id="p-e2b">—</td></tr>
+          <tr><td id="l-e2b">gemma 4 e2b qat · 2.46 GB (ple, ~1.05 GB/token est)</td><td class="v" id="p-e2b">—</td></tr>
           <tr><td>8b class q4 · ≈4.7 GB dense</td><td class="v" id="p-8b">—</td></tr>
           <tr><td>bonsai 27b 1-bit · 3.8 GB dense</td><td class="v" id="p-27b">—</td></tr>
         </table>
@@ -228,7 +228,8 @@
   <section class="methodology" id="methodology" hidden>
     <h3>Methodology</h3>
     <p><b>The premise.</b> Batch-1 LLM decode is memory-bound: every generated token must stream the weights it touches through the GPU once. Your tokens/s ceiling is therefore <b>memory bandwidth ÷ bytes touched per token</b>. Headroom measures that bandwidth three independent ways (buffer copy, triad read-write, and a pure-read reduction — the GEMV-shaped one), then runs a from-scratch GEMV ladder with deterministic synthetic weights to show how much of the ceiling real kernels reach on your device. Synthetic weights are valid because streaming time doesn't depend on the values — only correctness checking does, and the hash-derived fill lets an FP64 CPU reference verify every kernel before it's timed.</p>
-    <p><b>The denominator matters — a worked, validated example.</b> For dense models, bytes-per-token ≈ the whole artifact. For per-layer-embedding models like Gemma E2B, embedding tables (~half the 2.46 GB artifact) are <em>gathered</em> one row per token, not streamed — only the ~2.3B-effective core (~1.05 GB, estimated) flows every token. That's why the card shows a <b>band</b>: full-stream floor → core-only bound. Validation against real engines we measured ourselves: an Apple M1 measures ~54 GB/s here, giving an E2B band of ≈22–49 tok/s — Xenova's Gemma 4 E2B engine decodes at 30–40 tok/s on that machine, inside the band at 70–90% of the PLE-adjusted ceiling (near-roofline). An RTX 5070 runs the same engine at ~217 tok/s against a much higher band — it sits at roughly half its ceiling because per-token dispatch overhead (~4 ms measured) dominates, not bandwidth. One formula, two machines, both explained. If a card's number ever disagrees with reality, that disagreement is a finding — file it.</p>
+    <p><b>The denominator is derived, not guessed.</b> Headroom range-fetches the model's safetensors header (~0.4 MB of public metadata, from a <em>pinned</em> revision — never a moving main) and classifies every tensor for text decode. For Gemma 4 E2B QAT (2.46 GB artifact, 2,780 tensors): <b>0.81 GB streams every token</b> (transformer layers 0.68 + lm_head 0.10 + per-layer projection 0.03), 1.31 GB of embedding tables is <em>gathered</em> one row per token, and 0.34 GB of vision/audio towers is never touched in text decode. Ceilings are quoted at empty context — KV-cache reads grow with context length and lower the real ceiling.</p>
+    <p><b>Validated against real engines we measured ourselves.</b> An Apple M1 measures ~54 GB/s here → E2B ceiling ≈ 67 tok/s; Xenova's engine decodes 30–40 tok/s on that machine — roughly half the ceiling, and the measured ~22 ms/token WebGPU dispatch overhead accounts for most of the gap. An RTX 5070 runs the same engine at ~217 tok/s, far under its bandwidth ceiling — its measured ~4 ms/token dispatch overhead alone caps decode near 250 tok/s. Two machines, one conclusion: today's in-browser engines are <b>launch-overhead-bound, not bandwidth-bound</b> — there is real headroom, which is the point of measuring it. If a card's number ever disagrees with reality, that disagreement is a finding — file it.</p>
     <p><b>The rules.</b> Deterministic inputs (hash-derived, identically regenerable on CPU). Every kernel is checked against an FP64 CPU reference before it is timed — a kernel that fails correctness gets no performance number. Timing is wall-clock over large amortized dispatch blocks, median of 5 repeats, on your actual compositor-loaded browser — honest conditions, honestly labeled. If your machine hits 70% of its ceiling, the card says 70%.</p>
     <p><b>The canary.</b> Some GPU driver/compiler stacks mis-execute subgroup reductions under non-uniform control flow — the pattern class that shipped in real in-browser LLM engines and produced silent garbage on NVIDIA/Windows (found and fixed by this project's author, July 2026). The canary runs a guarded control (must pass everywhere) plus two risky variants, each with three possible outcomes: <b>PASS</b> (your driver tolerates the pattern), <b>FAIL</b> (your stack corrupts it — engines beware), or <b>BLOCKED</b> (your browser's compiler now rejects the class outright, which is the safe modern behavior). A ceiling projection assumes every token streams the full artifact; per-layer-embedding and MoE architectures can beat that line honestly.</p>
   </section>
@@ -261,6 +262,61 @@ function hash32(x) {
 function detVal(i, seed) { // f32 in [-1, 1), exact match with WGSL
   const h = hash32((i ^ seed) >>> 0);
   return Math.fround((h >>> 8) * (2 / 16777216) - 1);
+}
+
+/* ---------- tensor manifests: exact bytes-per-token denominators ----------
+ * The safetensors header (a few hundred kB) lists every tensor's byte range.
+ * Range-fetched from the PINNED revision — never a moving main. */
+const MANIFEST_CACHE_KEY = 'headroom-manifest-v1:';
+async function fetchSafetensorsHeader(url) {
+  let r = await fetch(url, { headers: { Range: 'bytes=0-7' } });
+  if (r.status === 206) {
+    const n = Number(new DataView(await r.arrayBuffer()).getBigUint64(0, true));
+    const r2 = await fetch(url, { headers: { Range: 'bytes=8-' + (7 + n) } });
+    if (r2.status === 206) return JSON.parse(new TextDecoder().decode(await r2.arrayBuffer()));
+    r = r2;
+  }
+  if (!r.ok || !r.body) throw new Error('manifest HTTP ' + r.status);
+  // no range support: stream only the header bytes, then cancel the download
+  const reader = r.body.getReader();
+  let buf = new Uint8Array(0), need = Infinity;
+  for (;;) {
+    if (buf.length >= 8 && need === Infinity)
+      need = 8 + Number(new DataView(buf.buffer, buf.byteOffset, 8).getBigUint64(0, true));
+    if (buf.length >= need) break;
+    const { done, value } = await reader.read();
+    if (done) break;
+    const nb = new Uint8Array(buf.length + value.length);
+    nb.set(buf); nb.set(value, buf.length); buf = nb;
+  }
+  reader.cancel().catch(() => {});
+  need = 8 + Number(new DataView(buf.buffer, buf.byteOffset, 8).getBigUint64(0, true));
+  return JSON.parse(new TextDecoder().decode(buf.slice(8, need)));
+}
+// text-decode classification (validated against the real E2B header, 2026-07-19):
+//   gathered — embedding TABLES read one row per token (embed_tokens, embed_tokens_per_layer)
+//   excluded — vision/audio towers, untouched during text decode
+//   streamed — everything else: layers, lm_head, per_layer_model_projection, norms
+function classifyTextDecode(header) {
+  let streamed = 0, gathered = 0, excluded = 0, count = 0;
+  for (const k of Object.keys(header)) {
+    if (k === '__metadata__') continue;
+    const t = header[k];
+    if (!t || !t.data_offsets) continue;
+    const b = t.data_offsets[1] - t.data_offsets[0];
+    count++;
+    if (/vision_tower|audio_tower|embed_vision|embed_audio/.test(k)) excluded += b;
+    else if (/embed_tokens_per_layer|(^|\.)embed_tokens\./.test(k)) gathered += b;
+    else streamed += b;
+  }
+  return { streamed, gathered, excluded, count };
+}
+async function resolveManifest(url) {
+  const key = MANIFEST_CACHE_KEY + url;
+  try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c && c.streamed) return c; } catch (e) {}
+  const split = classifyTextDecode(await fetchSafetensorsHeader(url));
+  try { localStorage.setItem(key, JSON.stringify(split)); } catch (e) {}
+  return split;
 }
 
 const WGSL_COMMON = /* wgsl */`
@@ -516,7 +572,9 @@ const SEED_W = 0xA11CE001, SEED_X = 0xA11CE002, SEED_C = 0xA11CE003;
 // (~2.3B effective core params of a ~5.5B-param q4-class artifact); dense models
 // stream everything, so active === bytes.
 const MODELS = [
-  { id: 'p-e2b', name: 'gemma 4 e2b qat', bytes: 2458111846, active: 1050000000, activeEst: true },
+  { id: 'p-e2b', name: 'gemma 4 e2b qat', bytes: 2458111846, active: 1050000000, activeEst: true,
+    // pinned revision, verified 2026-07-19 — real split: streams 0.81 GB, gathers 1.31 GB, non-text 0.34 GB
+    manifestUrl: 'https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers/resolve/b11b04294163e8e0282580b8c398f5cd52712054/model.safetensors' },
   { id: 'p-8b',  name: '8b class q4',     bytes: 4700000000, active: 4700000000 },
   { id: 'p-27b', name: 'bonsai 27b 1-bit', bytes: 3800000000, active: 3800000000 },
 ];
@@ -986,6 +1044,22 @@ async function runSuite() {
     else setProbe('can', 1, '<span class="bad">CONTROL FAILED</span>', 'bad');
   }
 
+  /* --- tensor manifests: turn estimates into derived denominators --- */
+  status('fetching tensor manifests (~0.4 MB public metadata)…');
+  for (const m of MODELS) {
+    if (!m.manifestUrl) continue;
+    try {
+      const sp = await resolveManifest(m.manifestUrl);
+      m.active = sp.streamed; m.activeEst = false; m.derived = true;
+      receipt('tensor manifest · ' + m.name, {
+        result: 'streams ' + (sp.streamed / 1e9).toFixed(2) + ' GB/token · gathers ' + (sp.gathered / 1e9).toFixed(2) + ' GB · non-text ' + (sp.excluded / 1e9).toFixed(2) + ' GB (' + sp.count + ' tensors @ pinned rev)',
+        gate: 'DERIVED from safetensors header',
+      });
+    } catch (e) {
+      receipt('tensor manifest · ' + m.name, { result: 'fetch failed (' + String(e && e.message || e).slice(0, 60) + ') — using estimate', gate: 'EST fallback' });
+    }
+  }
+
   /* --- score --- */
   status('done.');
   const eff = readGBps > 0 && bestGemv > 0 ? bestGemv / readGBps : 0;
@@ -994,9 +1068,11 @@ async function runSuite() {
     bestGemvGBps: bestGemv, bestGemvName: bestName, efficiency: eff,
     canary: canaryState,
     projections: MODELS.map(m => ({
-      name: m.name, artifactBytes: m.bytes, activeBytes: m.active, activeEst: !!m.activeEst,
-      tokLo: readGBps * 1e9 / m.bytes,          // floor-ceiling: full artifact streams
-      tokHi: readGBps * 1e9 / m.active,         // PLE-adjusted: only active core streams
+      name: m.name, artifactBytes: m.bytes, activeBytes: m.active,
+      activeEst: !!m.activeEst, derived: !!m.derived,
+      // derived split → single exact ceiling; estimate → honest band (floor: full artifact)
+      tokLo: readGBps * 1e9 / (m.derived ? m.active : m.bytes),
+      tokHi: readGBps * 1e9 / m.active,
     })),
   };
   renderResult();
@@ -1015,7 +1091,13 @@ function renderResult() {
     : String(Math.round(p.tokLo));
   const e2b = s.projections[0];
   $('c-big').textContent = band(e2b);
-  $('c-bigcap').textContent = 'gemma 4 e2b · ceiling band: full-stream → core-only (ple)';
+  $('c-bigcap').textContent = e2b.derived
+    ? 'gemma 4 e2b · streams ' + (e2b.activeBytes / 1e9).toFixed(2) + ' GB/token (derived, empty context)'
+    : 'gemma 4 e2b · ceiling band: full-stream → core-only (ple, est)';
+  const l = $('l-e2b');
+  if (l) l.textContent = e2b.derived
+    ? 'gemma 4 e2b qat · streams ' + (e2b.activeBytes / 1e9).toFixed(2) + ' GB/token (derived)'
+    : 'gemma 4 e2b qat · 2.46 GB (ple, ~1.05 GB/token est)';
   const effPct = Math.min(100, Math.round(s.efficiency * 100)); // meter clamps; label stays honest
   $('c-fill').style.width = effPct + '%';
   $('c-tick').style.left = effPct + '%';
@@ -1081,7 +1163,9 @@ function drawSharePNG() {
   g.fillStyle = '#8A90A0'; g.font = mono(34);
   g.fillText('tok/s ceiling band', 60 + bw + 20, 320);
   g.font = mono(15); g.fillStyle = '#8A90A0';
-  g.fillText('GEMMA 4 E2B · FULL-STREAM → CORE-ONLY (PLE) · FROM MEASURED READ BANDWIDTH', 60, 366);
+  g.fillText(pj.derived
+    ? ('GEMMA 4 E2B · STREAMS ' + (pj.activeBytes / 1e9).toFixed(2) + ' GB/TOKEN (DERIVED FROM TENSOR MANIFEST) · EMPTY CONTEXT')
+    : 'GEMMA 4 E2B · FULL-STREAM → CORE-ONLY (PLE, EST) · FROM MEASURED READ BANDWIDTH', 60, 366);
   // meter
   const mx = 60, my = 420, mw = W - 120, mh = 16;
   g.fillStyle = '#1C212B'; g.fillRect(mx, my, mw, mh);
