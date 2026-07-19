@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEADROOM — how fast is your machine, really?</title>
+<meta name="description" content="A 30-second WebGPU test that measures your device's real memory-bandwidth ceiling for local AI, checks your driver for the subgroup bug, and tells you your tokens/s headroom. No model download. No data leaves your machine.">
+<style>
+  :root {
+    --bg: #E9E8E4; --grid: #DAD7CE; --panel: #F4F3EF; --edge: #C9C6BC;
+    --ink: #17181A; --muted: #6A685F; --accent: #D9331F;
+    --pass: #2E7D4F; --fail: #B3261E; --na: #8A877C;
+    --card-bg: #101319; --card-edge: #262D3A; --card-ink: #E8EAF0;
+    --card-muted: #8A90A0; --card-accent: #FF5A3C; --card-pass: #4CC38A; --card-fail: #FF7A6E;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101319; --grid: #1A2029; --panel: #151A23; --edge: #262D3A;
+      --ink: #E8EAF0; --muted: #8A90A0; --accent: #FF5A3C;
+      --pass: #4CC38A; --fail: #FF7A6E; --na: #6B7280;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: system-ui, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.55;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .mono, .num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+  .sheet { max-width: 980px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header.plate {
+    border-bottom: 2px solid var(--ink); padding: 22px 0 14px;
+    display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px;
+  }
+  .wordmark { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: 18px; letter-spacing: 0.06em; }
+  .wordmark .c { color: var(--accent); }
+  .plate .sub { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+  /* landing */
+  #hero { padding: 56px 0 32px; }
+  #hero h1 {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: clamp(34px, 6.4vw, 68px); font-weight: 700; line-height: 1.02;
+    letter-spacing: -0.03em; margin: 0 0 18px; text-wrap: balance;
+  }
+  #hero h1 .dim { color: var(--muted); }
+  #hero p.lede { max-width: 60ch; font-size: 17px; margin: 0 0 10px; }
+  #hero p.fine { max-width: 60ch; font-size: 13.5px; color: var(--muted); margin: 0 0 28px; }
+  .cta-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  button.run {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.08em;
+    background: var(--ink); color: var(--bg); border: none; cursor: pointer;
+    padding: 14px 26px; border-radius: 2px;
+  }
+  button.run:hover { background: var(--accent); color: #fff; }
+  button.run:focus-visible, .ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.run[disabled] { opacity: 0.5; cursor: default; }
+  .ghost {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: 0.06em; color: var(--muted);
+    background: none; border: 1px solid var(--edge); padding: 10px 14px; cursor: pointer; border-radius: 2px;
+  }
+  .ghost:hover { color: var(--ink); border-color: var(--ink); }
+  .hero-stats { display: flex; gap: 0; border: 1px solid var(--edge); background: var(--panel); margin-top: 36px; flex-wrap: wrap; }
+  .hs { flex: 1 1 140px; padding: 14px 16px 12px; border-right: 1px solid var(--edge); min-width: 130px; }
+  .hs:last-child { border-right: none; }
+  .hs .n { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: 22px; }
+  .hs .l { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 9.5px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+
+  /* run sheet */
+  #runsheet { display: none; padding-top: 34px; }
+  .runhead { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
+  .runhead h2 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  #devline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); letter-spacing: 0.04em; }
+  #probes { border: 1px solid var(--edge); background: var(--panel); }
+  .probe { display: grid; grid-template-columns: 200px 1fr 130px; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--edge); align-items: center; }
+  .probe:last-child { border-bottom: none; }
+  .probe .pname { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.04em; }
+  .probe .pname .sub { color: var(--muted); font-size: 10.5px; display: block; letter-spacing: 0.02em; }
+  .barwrap { height: 12px; background: color-mix(in srgb, var(--edge) 45%, transparent); position: relative; }
+  .bar { position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--accent); transition: width 0.6s ease; }
+  @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+  .bar.pending { background: repeating-linear-gradient(90deg, var(--muted), var(--muted) 4px, transparent 4px, transparent 8px); opacity: 0.5; }
+  .pval { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; text-align: right; }
+  .pval .ok { color: var(--pass); font-weight: 700; }
+  .pval .bad { color: var(--fail); font-weight: 700; }
+  .pval .na { color: var(--na); }
+  @media (max-width: 640px) { .probe { grid-template-columns: 1fr 90px; } .barwrap { display: none; } }
+  #statusline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); padding: 10px 2px; letter-spacing: 0.05em; min-height: 34px; }
+
+  /* result */
+  #result { display: none; margin-top: 36px; }
+  .result-grid { display: grid; grid-template-columns: minmax(0, 560px) 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 860px) { .result-grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card-bg); color: var(--card-ink);
+    border: 1px solid var(--card-edge); padding: 20px 22px 18px;
+    box-shadow: 0 14px 36px rgba(0,0,0,0.30);
+  }
+  .card .top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--card-muted);
+    border-bottom: 1px solid var(--card-edge); padding-bottom: 10px;
+  }
+  .card .canary-stamp { padding: 2px 7px; letter-spacing: 0.12em; border: 1px solid var(--card-pass); color: var(--card-pass); }
+  .card .canary-stamp.fail { border-color: var(--card-fail); color: var(--card-fail); }
+  .card .dev { font-size: 15px; font-weight: 600; margin: 13px 0 1px; }
+  .card .devsub { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; color: var(--card-muted); }
+  .card .big { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; font-size: clamp(48px, 9vw, 66px); font-weight: 700; line-height: 1; letter-spacing: -0.03em; margin: 16px 0 2px; }
+  .card .big small { font-size: 20px; font-weight: 400; color: var(--card-muted); letter-spacing: 0; }
+  .card .bigcap { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--card-muted); }
+  .card .meter { margin: 18px 0 4px; }
+  .card .mbar { height: 10px; background: #1C212B; position: relative; }
+  .card .mfill { position: absolute; inset: 0 auto 0 0; background: var(--card-accent); width: 0%; }
+  .card .mtick { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--card-ink); }
+  .card .mscale { display: flex; justify-content: space-between; margin-top: 7px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 9.5px; color: var(--card-muted); letter-spacing: 0.08em; }
+  .card table.proj { width: 100%; border-collapse: collapse; margin-top: 16px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  .card table.proj td { padding: 6px 0; border-top: 1px solid var(--card-edge); color: var(--card-muted); }
+  .card table.proj td.v { text-align: right; color: var(--card-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .foot { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--card-edge); display: flex; justify-content: space-between; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10px; color: var(--card-muted); letter-spacing: 0.1em; }
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .actions .note { font-size: 13.5px; color: var(--muted); max-width: 40ch; }
+  .actions button { text-align: left; }
+
+  /* receipts table */
+  #receipts { margin-top: 34px; }
+  #receipts h3 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+  .rtable-wrap { overflow-x: auto; border: 1px solid var(--edge); background: var(--panel); }
+  table.rtable { width: 100%; border-collapse: collapse; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; min-width: 640px; }
+  table.rtable th { text-align: left; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--edge); background: var(--bg); }
+  table.rtable td { padding: 7px 12px; border-bottom: 1px solid var(--edge); font-variant-numeric: tabular-nums; }
+  table.rtable tr:last-child td { border-bottom: none; }
+  .ok { color: var(--pass); font-weight: 700; } .bad { color: var(--fail); font-weight: 700; } .nap { color: var(--na); }
+
+  #err { display: none; margin-top: 30px; border: 1px solid var(--fail); background: var(--panel); padding: 18px 20px; }
+  #err h3 { margin: 0 0 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; color: var(--fail); }
+  #err p { margin: 0 0 8px; font-size: 14.5px; max-width: 70ch; }
+
+  footer { margin-top: 72px; border-top: 2px solid var(--ink); padding-top: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--accent); }
+  .methodology { margin-top: 60px; }
+  .methodology h3 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+  .methodology p { max-width: 70ch; font-size: 14.5px; }
+  .methodology b { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="plate">
+    <div class="wordmark">HEADROOM<span class="c">_</span></div>
+    <div class="sub">local ai · measured · nothing leaves your machine</div>
+  </header>
+
+  <section id="hero">
+    <h1>How fast is your machine, <span class="dim">really?</span></h1>
+    <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI — the number that decides your tokens/s. It also checks your GPU driver for the <b>subgroup bug</b> that makes some in-browser LLMs silently produce garbage.</p>
+    <p class="fine">No model download — the probes use synthetic weights. No account, no ads, no telemetry: measurements stay in your browser unless you share them. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
+    <div class="cta-row">
+      <button class="run" id="runbtn">RUN THE TEST →</button>
+      <button class="ghost" id="methbtn">methodology</button>
+    </div>
+    <div class="hero-stats">
+      <div class="hs"><div class="n num">~30 s</div><div class="l">full suite</div></div>
+      <div class="hs"><div class="n num">0 B</div><div class="l">model download</div></div>
+      <div class="hs"><div class="n num">FP64</div><div class="l">reference gate before timing</div></div>
+      <div class="hs"><div class="n num">med·5</div><div class="l">medians, not bests</div></div>
+    </div>
+  </section>
+
+  <section id="runsheet">
+    <div class="runhead"><h2>RUN SHEET</h2><span id="devline" class="num">detecting device…</span></div>
+    <div id="statusline">preparing…</div>
+    <div id="probes"></div>
+  </section>
+
+  <section id="result">
+    <div class="result-grid">
+      <div class="card" id="card">
+        <div class="top"><span>HEADROOM · RUN RECEIPT</span><span class="canary-stamp" id="c-stamp">CANARY —</span></div>
+        <div class="dev" id="c-dev">—</div>
+        <div class="devsub" id="c-devsub">—</div>
+        <div class="big num"><span id="c-big">—</span><small> tok/s ceiling</small></div>
+        <div class="bigcap" id="c-bigcap">gemma 4 e2b class · 2.46 GB resident</div>
+        <div class="meter">
+          <div class="mbar"><div class="mfill" id="c-fill"></div><div class="mtick" id="c-tick" style="left:0%"></div></div>
+          <div class="mscale"><span>0</span><span id="c-eff">kernel efficiency —</span><span id="c-ceil">read ceiling —</span></div>
+        </div>
+        <table class="proj">
+          <tr><td>gemma 4 e2b qat · 2.46 GB</td><td class="v" id="p-e2b">—</td></tr>
+          <tr><td>8b class q4 · ≈4.7 GB</td><td class="v" id="p-8b">—</td></tr>
+          <tr><td>bonsai 27b 1-bit · 3.8 GB</td><td class="v" id="p-27b">—</td></tr>
+        </table>
+        <div class="foot"><span id="c-canaryline">SUBGROUP CANARY: —</span><span>HEADROOM · v0.1</span></div>
+      </div>
+      <div class="actions">
+        <button class="run" id="pngbtn">DOWNLOAD SHARE CARD (PNG)</button>
+        <button class="ghost" id="jsonbtn">download JSON receipt</button>
+        <button class="ghost" id="copybtn">copy JSON receipt</button>
+        <button class="ghost" id="againbtn">run again</button>
+        <p class="note">Projections are ceilings — measured read bandwidth ÷ resident model bytes. Real engines land below this line; the gap is kernel quality, and that's the point of measuring it.</p>
+      </div>
+    </div>
+    <div id="receipts">
+      <h3>Receipts — every number, its method</h3>
+      <div class="rtable-wrap"><table class="rtable" id="rtable">
+        <thead><tr><th>probe</th><th>result</th><th>bytes/pass</th><th>iters × reps</th><th>gate</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <div id="err">
+    <h3>CAN'T RUN — <span id="errkind">NO WEBGPU</span></h3>
+    <p id="errmsg"></p>
+  </div>
+
+  <section class="methodology" id="methodology" hidden>
+    <h3>Methodology</h3>
+    <p><b>The premise.</b> Batch-1 LLM decode is memory-bound: every generated token must stream the resident weights through the GPU once. Your tokens/s ceiling is therefore <b>memory bandwidth ÷ model bytes</b>. Headroom measures that bandwidth three independent ways (buffer copy, triad read-write, and a pure-read reduction — the GEMV-shaped one), then runs a from-scratch GEMV ladder with deterministic synthetic weights to show how much of the ceiling real kernels reach on your device.</p>
+    <p><b>The rules.</b> Deterministic inputs (hash-derived, identically regenerable on CPU). Every kernel is checked against an FP64 CPU reference before it is timed — a kernel that fails correctness gets no performance number. Timing is wall-clock over large amortized dispatch blocks, median of 5 repeats, on your actual compositor-loaded browser — honest conditions, honestly labeled. If your machine hits 70% of its ceiling, the card says 70%.</p>
+    <p><b>The canary.</b> Some GPU driver/compiler stacks mis-execute subgroup reductions under non-uniform control flow — the exact pattern that shipped in real in-browser LLM engines and produced silent garbage on NVIDIA/Windows (found and fixed by this project's author, July 2026). The canary runs that pattern plus a guarded control: guarded must pass everywhere; if bare fails, engines using it on your machine are computing wrong numbers fast.</p>
+  </section>
+
+  <footer>
+    <span>MIT · no ads · no telemetry</span>
+    <span>by the person who found the <a href="https://github.com/Ar5en1c/gemma4-webgpu-nvidia-subgroup-fix">NVIDIA subgroup bug</a></span>
+  </footer>
+</div>
+
+<script>
+'use strict';
+/* ============================================================ *
+ *  HEADROOM v0.1 — WebGPU bandwidth ceiling + GEMV ladder
+ *  Method: deterministic fills, FP64 gate before timing,
+ *  wall-amortized blocks, median of 5. MIT.
+ * ============================================================ */
+
+const VERSION = '0.1.0';
+const $ = (id) => document.getElementById(id);
+
+/* ---------- deterministic values: identical in WGSL + JS ---------- */
+function hash32(x) {
+  x = (x ^ 0x9E3779B9) >>> 0;
+  x = (x ^ (x >>> 16)) >>> 0; x = Math.imul(x, 0x7FEB352D) >>> 0;
+  x = (x ^ (x >>> 15)) >>> 0; x = Math.imul(x, 0x846CA68B) >>> 0;
+  x = (x ^ (x >>> 16)) >>> 0;
+  return x >>> 0;
+}
+function detVal(i, seed) { // f32 in [-1, 1), exact match with WGSL
+  const h = hash32((i ^ seed) >>> 0);
+  return Math.fround((h >>> 8) * (2 / 16777216) - 1);
+}
+
+const WGSL_COMMON = /* wgsl */`
+fn hash32(x0: u32) -> u32 {
+  var x = x0 ^ 0x9E3779B9u;
+  x = x ^ (x >> 16u); x = x * 0x7FEB352Du;
+  x = x ^ (x >> 15u); x = x * 0x846CA68Bu;
+  x = x ^ (x >> 16u);
+  return x;
+}
+fn detVal(i: u32, seed: u32) -> f32 {
+  let h = hash32(i ^ seed);
+  return f32(h >> 8u) * (2.0 / 16777216.0) - 1.0;
+}
+struct Params { a: u32, b: u32, c: u32, d: u32 }
+`;
+
+/* ---------- shaders ---------- */
+// fill W as vec4s: a=n4, b=seed
+const SH_FILL = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read_write> buf : array<vec4<f32>>;
+@group(0) @binding(1) var<uniform> p : Params;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let i = gid.x;
+  if (i >= p.a) { return; }
+  let e = i * 4u;
+  buf[i] = vec4<f32>(detVal(e, p.b), detVal(e + 1u, p.b), detVal(e + 2u, p.b), detVal(e + 3u, p.b));
+}`;
+
+// pure-read bandwidth, grid-stride vec4, workgroup tree reduce; a=n4, b=stride(totalThreads)
+const SH_READSUM = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read> src : array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> out : array<f32>;
+@group(0) @binding(2) var<uniform> p : Params;
+var<workgroup> sh : array<f32, 256>;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>,
+        @builtin(local_invocation_index) li: u32,
+        @builtin(workgroup_id) wg: vec3<u32>) {
+  var acc = 0.0;
+  var i = gid.x;
+  for (; i < p.a; i = i + p.b) {
+    let v = src[i];
+    acc = acc + v.x + v.y + v.z + v.w;
+  }
+  sh[li] = acc;
+  workgroupBarrier();
+  var off = 128u;
+  for (; off > 0u; off = off >> 1u) {
+    if (li < off) { sh[li] = sh[li] + sh[li + off]; }
+    workgroupBarrier();
+  }
+  if (li == 0u) { out[wg.x] = sh[0]; }
+}`;
+
+// triad: C = A + s*B, grid-stride vec4; a=n4, b=stride
+const SH_TRIAD = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read> A : array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read> B : array<vec4<f32>>;
+@group(0) @binding(2) var<storage, read_write> C : array<vec4<f32>>;
+@group(0) @binding(3) var<uniform> p : Params;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  var i = gid.x;
+  for (; i < p.a; i = i + p.b) {
+    C[i] = A[i] + 0.5 * B[i];
+  }
+}`;
+
+// g0: one thread per row, scalar (uncoalesced); a=M, b=K
+const SH_G0 = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read> W : array<f32>;
+@group(0) @binding(1) var<storage, read> X : array<f32>;
+@group(0) @binding(2) var<storage, read_write> Y : array<f32>;
+@group(0) @binding(3) var<uniform> p : Params;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let m = gid.x;
+  if (m >= p.a) { return; }
+  let base = m * p.b;
+  var acc = 0.0;
+  for (var k = 0u; k < p.b; k = k + 1u) {
+    acc = acc + W[base + k] * X[k];
+  }
+  Y[m] = acc;
+}`;
+
+// g1: workgroup per row, coalesced scalar loads, shared tree; a=M, b=K
+const SH_G1 = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read> W : array<f32>;
+@group(0) @binding(1) var<storage, read> X : array<f32>;
+@group(0) @binding(2) var<storage, read_write> Y : array<f32>;
+@group(0) @binding(3) var<uniform> p : Params;
+var<workgroup> sh : array<f32, 256>;
+@compute @workgroup_size(256)
+fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) li: u32) {
+  let base = wg.x * p.b;
+  var acc = 0.0;
+  for (var k = li; k < p.b; k = k + 256u) {
+    acc = acc + W[base + k] * X[k];
+  }
+  sh[li] = acc;
+  workgroupBarrier();
+  var off = 128u;
+  for (; off > 0u; off = off >> 1u) {
+    if (li < off) { sh[li] = sh[li] + sh[li + off]; }
+    workgroupBarrier();
+  }
+  if (li == 0u) { Y[wg.x] = sh[0]; }
+}`;
+
+// g2: workgroup per row, vec4 loads, shared tree; a=M, b=K4
+const SH_G2 = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read> W4 : array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read> X4 : array<vec4<f32>>;
+@group(0) @binding(2) var<storage, read_write> Y : array<f32>;
+@group(0) @binding(3) var<uniform> p : Params;
+var<workgroup> sh : array<f32, 256>;
+@compute @workgroup_size(256)
+fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) li: u32) {
+  let base = wg.x * p.b;
+  var acc = 0.0;
+  for (var k = li; k < p.b; k = k + 256u) {
+    acc = acc + dot(W4[base + k], X4[k]);
+  }
+  sh[li] = acc;
+  workgroupBarrier();
+  var off = 128u;
+  for (; off > 0u; off = off >> 1u) {
+    if (li < off) { sh[li] = sh[li] + sh[li + off]; }
+    workgroupBarrier();
+  }
+  if (li == 0u) { Y[wg.x] = sh[0]; }
+}`;
+
+// g3: 8 rows per workgroup (32x8), vec4, per-row shared tree; a=M, b=K4
+const SH_G3 = WGSL_COMMON + /* wgsl */`
+@group(0) @binding(0) var<storage, read> W4 : array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read> X4 : array<vec4<f32>>;
+@group(0) @binding(2) var<storage, read_write> Y : array<f32>;
+@group(0) @binding(3) var<uniform> p : Params;
+var<workgroup> sh : array<f32, 256>; // [row 0..7][lane 0..31]
+@compute @workgroup_size(32, 8)
+fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
+  let m = wg.x * 8u + lid.y;
+  let lane = lid.x;
+  let slot = lid.y * 32u + lane;
+  var acc = 0.0;
+  if (m < p.a) {
+    let base = m * p.b;
+    for (var k = lane; k < p.b; k = k + 32u) {
+      acc = acc + dot(W4[base + k], X4[k]);
+    }
+  }
+  sh[slot] = acc;
+  workgroupBarrier();
+  var off = 16u;
+  for (; off > 0u; off = off >> 1u) {
+    if (lane < off) { sh[slot] = sh[slot] + sh[slot + off]; }
+    workgroupBarrier();
+  }
+  if (lane == 0u && m < p.a) { Y[m] = sh[lid.y * 32u]; }
+}`;
+
+// g4: subgroup reduce, vec4, uniform control flow (K4 % 256 == 0 enforced); a=M, b=K4
+const SH_G4 = WGSL_COMMON + /* wgsl */`
+enable subgroups;
+@group(0) @binding(0) var<storage, read> W4 : array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read> X4 : array<vec4<f32>>;
+@group(0) @binding(2) var<storage, read_write> Y : array<f32>;
+@group(0) @binding(3) var<uniform> p : Params;
+var<workgroup> partials : array<f32, 256>;
+@compute @workgroup_size(256)
+fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) li: u32,
+        @builtin(subgroup_invocation_id) lane: u32) {
+  let base = wg.x * p.b;
+  var acc = 0.0;
+  for (var k = li; k < p.b; k = k + 256u) {
+    acc = acc + dot(W4[base + k], X4[k]);
+  }
+  let s = subgroupAdd(acc); // uniform: every thread executes this
+  partials[li] = select(0.0, s, lane == 0u);
+  workgroupBarrier();
+  if (li == 0u) {
+    var t = 0.0;
+    for (var i = 0u; i < 256u; i = i + 1u) { t = t + partials[i]; }
+    Y[wg.x] = t;
+  }
+}`;
+
+// canary GUARDED (must pass everywhere): pad inactive lanes with 0, uniform subgroupAdd; a=n
+const SH_CAN_GUARD = WGSL_COMMON + /* wgsl */`
+enable subgroups;
+@group(0) @binding(0) var<storage, read> D : array<f32>;
+@group(0) @binding(1) var<storage, read_write> out : array<f32>;
+@group(0) @binding(2) var<uniform> p : Params;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) li: u32,
+        @builtin(workgroup_id) wg: vec3<u32>, @builtin(subgroup_invocation_id) lane: u32) {
+  var v = 0.0;
+  if (gid.x < p.a) { v = D[gid.x]; }
+  let s = subgroupAdd(v); // uniform call; inactive contribute 0
+  if (lane == 0u) { out[wg.x * 256u + li] = s; }
+}`;
+
+// canary BARE (the engine pattern that shipped): subgroupAdd inside non-uniform guard; a=n
+const SH_CAN_BARE = WGSL_COMMON + /* wgsl */`
+enable subgroups;
+@group(0) @binding(0) var<storage, read> D : array<f32>;
+@group(0) @binding(1) var<storage, read_write> out : array<f32>;
+@group(0) @binding(2) var<uniform> p : Params;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_index) li: u32,
+        @builtin(workgroup_id) wg: vec3<u32>, @builtin(subgroup_invocation_id) lane: u32) {
+  if (gid.x < p.a) {                 // <-- non-uniform control flow
+    let s = subgroupAdd(D[gid.x]);   // <-- the pattern real engines shipped
+    if (lane == 0u) { out[wg.x * 256u + li] = s; }
+  }
+}`;
+
+/* ---------- suite configuration ---------- */
+const SEED_W = 0xA11CE001, SEED_X = 0xA11CE002, SEED_C = 0xA11CE003;
+const MODELS = [
+  { id: 'p-e2b', name: 'gemma 4 e2b qat', bytes: 2458111846 },      // exact artifact size
+  { id: 'p-8b',  name: '8b class q4',     bytes: 4700000000 },      // ~4.7 GB typical q4_0
+  { id: 'p-27b', name: 'bonsai 27b 1-bit', bytes: 3800000000 },     // per model card
+];
+const REL_TOL = 1e-3, REPEATS = 5, TARGET_BLOCK_MS = 150;
+
+const state = { receipts: [], score: null, device: null, deviceInfo: null, shapes: null };
+
+/* ---------- tiny helpers ---------- */
+function median(a) { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; }
+function relErr(ref, got) {
+  const denom = Math.max(Math.abs(ref), Math.abs(got), 1e-3);
+  return Math.abs(ref - got) / denom;
+}
+function fmtGB(x) { return x >= 100 ? x.toFixed(0) : x.toFixed(1); }
+function status(msg) { $('statusline').textContent = msg; }
+
+function probeRow(id, name, sub) {
+  const div = document.createElement('div');
+  div.className = 'probe'; div.id = 'row-' + id;
+  div.innerHTML = '<div class="pname">' + name + '<span class="sub">' + sub + '</span></div>'
+    + '<div class="barwrap"><div class="bar pending" id="bar-' + id + '"></div></div>'
+    + '<div class="pval num" id="val-' + id + '">…</div>';
+  $('probes').appendChild(div);
+}
+function setProbe(id, frac, html, cls) {
+  const bar = $('bar-' + id);
+  if (bar) { bar.classList.remove('pending'); bar.style.width = Math.max(2, Math.min(100, frac * 100)) + '%'; if (cls === 'bad') bar.style.background = 'var(--fail)'; }
+  $('val-' + id).innerHTML = html;
+}
+
+/* ---------- GPU plumbing ---------- */
+async function initGPU() {
+  if (!navigator.gpu) throw { kind: 'NO WEBGPU', msg: 'This browser has no WebGPU. Use Chrome or Edge on desktop (or recent Android Chrome). Firefox and Safari support is still rolling out.' };
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) throw { kind: 'NO ADAPTER', msg: 'WebGPU is present but no GPU adapter was returned. On Windows, check that hardware acceleration is enabled in chrome://settings/system.' };
+  const hasSubgroups = adapter.features.has('subgroups');
+  const need = {};
+  if (hasSubgroups) need.requiredFeatures = ['subgroups'];
+  const device = await adapter.requestDevice(need);
+  let info = adapter.info || {};
+  const deviceInfo = {
+    vendor: info.vendor || '', architecture: info.architecture || '',
+    device: info.device || '', description: info.description || '',
+    subgroups: hasSubgroups,
+    maxStorageBufferBindingSize: device.limits.maxStorageBufferBindingSize,
+    maxBufferSize: device.limits.maxBufferSize,
+  };
+  device.lost.then((e) => { if (e.reason !== 'destroyed') showError('DEVICE LOST', 'The GPU device was lost mid-run (' + e.message + '). This usually means a driver reset. Re-run the test; if it persists on the big shape, your driver is killing long dispatches.'); });
+  return { device, deviceInfo, hasSubgroups };
+}
+
+function mkPipeline(device, code, entry) {
+  const mod = device.createShaderModule({ code });
+  return device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: entry || 'main' } });
+}
+function mkParams(device, a, b, c, d) {
+  const buf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(buf, 0, new Uint32Array([a, b, c || 0, d || 0]));
+  return buf;
+}
+async function readBack(device, src, bytes, offset) {
+  const dst = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = device.createCommandEncoder();
+  enc.copyBufferToBuffer(src, offset || 0, dst, 0, bytes);
+  device.queue.submit([enc.finish()]);
+  await dst.mapAsync(GPUMapMode.READ);
+  const out = new Float32Array(dst.getMappedRange().slice(0));
+  dst.unmap(); dst.destroy();
+  return out;
+}
+
+// time `encode(pass)` amortized: calibrate iters to TARGET_BLOCK_MS, median of REPEATS
+async function timeDispatch(device, pipeline, bindgroup, wgX, wgY) {
+  const one = async (iters) => {
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindgroup);
+    for (let i = 0; i < iters; i++) pass.dispatchWorkgroups(wgX, wgY || 1);
+    pass.end();
+    const t0 = performance.now();
+    device.queue.submit([enc.finish()]);
+    await device.queue.onSubmittedWorkDone();
+    return performance.now() - t0;
+  };
+  await one(2); // warmup
+  const est = (await one(4)) / 4;
+  const iters = Math.max(2, Math.min(2048, Math.round(TARGET_BLOCK_MS / Math.max(est, 0.05))));
+  const times = [];
+  for (let r = 0; r < REPEATS; r++) times.push((await one(iters)) / iters);
+  return { msPerIter: median(times), iters, repeats: REPEATS };
+}
+
+function receipt(name, fields) { state.receipts.push({ probe: name, ...fields }); }
+
+/* ---------- the suite ---------- */
+async function runSuite() {
+  $('hero').style.display = 'none';
+  $('runsheet').style.display = 'block';
+  $('err').style.display = 'none';
+  $('probes').innerHTML = '';
+  state.receipts = [];
+
+  const rows = [
+    ['dev', 'device', 'adapter, features, limits'],
+    ['fill', 'deterministic fill', 'hash-derived weights, GPU vs CPU'],
+    ['ref', 'fp64 reference', 'the gate every kernel must pass'],
+    ['copy', 'copy bandwidth', 'copyBufferToBuffer, 64 MiB'],
+    ['triad', 'triad r/w', 'C = A + s·B, 3× bytes'],
+    ['read', 'read ceiling ★', 'pure-read reduce, GEMV-shaped'],
+    ['g0', 'gemv · naive', '1 thread/row, uncoalesced'],
+    ['g1', 'gemv · coalesced', 'workgroup/row + tree reduce'],
+    ['g2', 'gemv · vec4', 'vectorized loads'],
+    ['g3', 'gemv · multirow', '8 rows/workgroup, 32 lanes each'],
+    ['g4', 'gemv · subgroup', 'subgroupAdd, uniform flow'],
+    ['can', 'subgroup canary', 'guarded vs the shipped bare pattern'],
+  ];
+  rows.forEach(r => probeRow(...r));
+
+  /* --- init --- */
+  status('requesting adapter…');
+  const { device, deviceInfo, hasSubgroups } = await initGPU();
+  state.device = device; state.deviceInfo = deviceInfo;
+  const devName = [deviceInfo.vendor, deviceInfo.architecture].filter(Boolean).join(' · ') || 'gpu (unnamed adapter)';
+  $('devline').textContent = devName + (hasSubgroups ? ' · subgroups' : ' · no subgroups');
+  setProbe('dev', 1, '<span class="ok">OK</span>');
+  receipt('device', { result: devName, gate: 'n/a', detail: deviceInfo });
+
+  /* --- shapes (adapt to limits) --- */
+  let M = 4096, K = 8192;                          // W = 128 MiB
+  const maxBind = deviceInfo.maxStorageBufferBindingSize;
+  if (maxBind < M * K * 4) { M = 2048; K = 4096; } // 32 MiB fallback
+  const K4 = K / 4, N4W = (M * K) / 4;
+  const TRI_N4 = 4 * 1024 * 1024;                  // 64 MiB per buffer
+  const CAN_N = 1000003;                           // deliberately not a multiple of 256
+  state.shapes = { M, K, triadBytes: TRI_N4 * 16, wBytes: M * K * 4 };
+
+  /* --- buffers --- */
+  status('allocating ' + ((M * K * 4) / (1 << 20)).toFixed(0) + ' MiB weight buffer…');
+  const S = GPUBufferUsage.STORAGE, CS = S | GPUBufferUsage.COPY_SRC;
+  const bufW = device.createBuffer({ size: M * K * 4, usage: CS });
+  const bufX = device.createBuffer({ size: K * 4, usage: CS });
+  const bufY = device.createBuffer({ size: M * 4, usage: CS });
+  const bufA = device.createBuffer({ size: TRI_N4 * 16, usage: CS });
+  const bufB = device.createBuffer({ size: TRI_N4 * 16, usage: S });
+  const bufC = device.createBuffer({ size: TRI_N4 * 16, usage: S | GPUBufferUsage.COPY_DST });
+  const bufD = device.createBuffer({ size: CAN_N * 4, usage: S });          // canary data
+  const canWG = Math.ceil(CAN_N / 256);
+  const bufCanOut = device.createBuffer({ size: canWG * 256 * 4, usage: CS | GPUBufferUsage.COPY_DST });
+  const readWG = 512;
+  const bufRSOut = device.createBuffer({ size: readWG * 4, usage: CS });
+
+  /* --- pipelines --- */
+  const pFill = mkPipeline(device, SH_FILL);
+  const pRead = mkPipeline(device, SH_READSUM);
+  const pTriad = mkPipeline(device, SH_TRIAD);
+  const pG0 = mkPipeline(device, SH_G0), pG1 = mkPipeline(device, SH_G1);
+  const pG2 = mkPipeline(device, SH_G2), pG3 = mkPipeline(device, SH_G3);
+  let pG4 = null, pCanG = null, pCanB = null;
+  if (hasSubgroups) {
+    pG4 = mkPipeline(device, SH_G4);
+    pCanG = mkPipeline(device, SH_CAN_GUARD);
+    pCanB = mkPipeline(device, SH_CAN_BARE);
+  }
+
+  const bg = (pipe, entries) => device.createBindGroup({
+    layout: pipe.getBindGroupLayout(0),
+    entries: entries.map((buffer, i) => ({ binding: i, resource: { buffer } })),
+  });
+
+  /* --- fill + verify --- */
+  status('filling deterministic weights on GPU…');
+  {
+    const fills = [
+      [bufW, N4W, SEED_W], [bufX, K / 4, SEED_X],
+      [bufA, TRI_N4, SEED_W ^ 7], [bufB, TRI_N4, SEED_X ^ 7],
+      [bufD, Math.ceil(CAN_N / 4), SEED_C],
+    ];
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass();
+    for (const [buf, n4, seed] of fills) {
+      pass.setPipeline(pFill);
+      pass.setBindGroup(0, bg(pFill, [buf, mkParams(device, n4, seed)]));
+      pass.dispatchWorkgroups(Math.ceil(n4 / 256));
+    }
+    pass.end();
+    device.queue.submit([enc.finish()]);
+    await device.queue.onSubmittedWorkDone();
+
+    // verify X fully + 4 sampled W rows against CPU regeneration
+    const gx = await readBack(device, bufX, K * 4);
+    let maxe = 0;
+    for (let k = 0; k < K; k++) maxe = Math.max(maxe, relErr(detVal(k, SEED_X), gx[k]));
+    const sampleRows = [0, 1, M >> 1, M - 1];
+    for (const m of sampleRows) {
+      const row = await readBack(device, bufW, K * 4, m * K * 4);
+      for (let k = 0; k < K; k++) maxe = Math.max(maxe, relErr(detVal(m * K + k, SEED_W), row[k]));
+    }
+    const pass_ = maxe < 1e-6;
+    setProbe('fill', 1, pass_ ? '<span class="ok">VERIFIED</span>' : '<span class="bad">MISMATCH</span>');
+    receipt('deterministic fill', { result: 'max rel err ' + maxe.toExponential(1), gate: pass_ ? 'PASS' : 'FAIL' });
+    if (!pass_) throw { kind: 'FILL MISMATCH', msg: 'GPU-generated values do not match CPU regeneration — cannot trust any further number on this device.' };
+  }
+
+  /* --- FP64 references --- */
+  status('computing FP64 references on CPU (~32M values)…');
+  await new Promise(r => setTimeout(r, 30)); // let UI paint
+  const t0ref = performance.now();
+  let refWSum = 0;
+  for (let i = 0; i < M * K; i++) refWSum += detVal(i, SEED_W);
+  const xHost = new Float64Array(K);
+  for (let k = 0; k < K; k++) xHost[k] = detVal(k, SEED_X);
+  const gateRows = [];
+  for (let g = 0; g < 16; g++) gateRows.push(Math.floor((g + 0.5) * M / 16));
+  const refY = new Map();
+  for (const m of gateRows) {
+    let acc = 0;
+    for (let k = 0; k < K; k++) acc += detVal(m * K + k, SEED_W) * xHost[k];
+    refY.set(m, acc);
+  }
+  let refCan = 0;
+  for (let i = 0; i < CAN_N; i++) refCan += detVal(i, SEED_C);
+  const refMs = performance.now() - t0ref;
+  setProbe('ref', 1, '<span class="ok">READY</span>');
+  receipt('fp64 reference', { result: (M * K + CAN_N).toLocaleString() + ' values, ' + refMs.toFixed(0) + ' ms', gate: 'n/a' });
+
+  /* --- copy bandwidth --- */
+  status('copy bandwidth…');
+  {
+    const bytes = TRI_N4 * 16;
+    const one = async (iters) => {
+      const enc = device.createCommandEncoder();
+      for (let i = 0; i < iters; i++) enc.copyBufferToBuffer(bufA, 0, bufC, 0, bytes);
+      const t0 = performance.now();
+      device.queue.submit([enc.finish()]);
+      await device.queue.onSubmittedWorkDone();
+      return performance.now() - t0;
+    };
+    await one(2);
+    const est = (await one(4)) / 4;
+    const iters = Math.max(2, Math.min(2048, Math.round(TARGET_BLOCK_MS / Math.max(est, 0.05))));
+    const times = [];
+    for (let r = 0; r < REPEATS; r++) times.push((await one(iters)) / iters);
+    const ms = median(times), gbps = (2 * bytes) / (ms * 1e6);
+    state.copyGBps = gbps;
+    setProbe('copy', 0.01, fmtGB(gbps) + ' GB/s');
+    receipt('copy bandwidth', { result: fmtGB(gbps) + ' GB/s', bytes: 2 * bytes, timing: iters + '×' + REPEATS + ' med ' + ms.toFixed(3) + ' ms', gate: 'n/a' });
+  }
+
+  /* --- triad --- */
+  status('triad read/write…');
+  {
+    const stride = 2048 * 256;
+    const bgT = bg(pTriad, [bufA, bufB, bufC, mkParams(device, TRI_N4, stride)]);
+    const t = await timeDispatch(device, pTriad, bgT, 2048);
+    const bytes = 3 * TRI_N4 * 16;
+    const gbps = bytes / (t.msPerIter * 1e6);
+    state.triadGBps = gbps;
+    setProbe('triad', 0.01, fmtGB(gbps) + ' GB/s');
+    receipt('triad (C=A+sB)', { result: fmtGB(gbps) + ' GB/s', bytes, timing: t.iters + '×' + t.repeats + ' med ' + t.msPerIter.toFixed(3) + ' ms', gate: 'n/a' });
+  }
+
+  /* --- read ceiling (with correctness gate) --- */
+  status('read ceiling (the GEMV-shaped number)…');
+  let readGBps = 0;
+  {
+    const stride = readWG * 256;
+    const bgR = bg(pRead, [bufW, bufRSOut, mkParams(device, N4W, stride)]);
+    // gate first: one dispatch, sum partials vs FP64 total
+    {
+      const enc = device.createCommandEncoder();
+      const pass = enc.beginComputePass();
+      pass.setPipeline(pRead); pass.setBindGroup(0, bgR); pass.dispatchWorkgroups(readWG); pass.end();
+      device.queue.submit([enc.finish()]);
+      const partials = await readBack(device, bufRSOut, readWG * 4);
+      let got = 0; for (let i = 0; i < readWG; i++) got += partials[i];
+      const err = relErr(refWSum, got);
+      if (err > REL_TOL) {
+        setProbe('read', 1, '<span class="bad">GATE FAIL</span>');
+        receipt('read ceiling', { result: 'rel err ' + err.toExponential(2), gate: 'FAIL — no number' });
+      } else {
+        const t = await timeDispatch(device, pRead, bgR, readWG);
+        const bytes = M * K * 4;
+        readGBps = bytes / (t.msPerIter * 1e6);
+        setProbe('read', 1, '<b>' + fmtGB(readGBps) + ' GB/s</b>');
+        receipt('read ceiling ★', { result: fmtGB(readGBps) + ' GB/s', bytes, timing: t.iters + '×' + t.repeats + ' med ' + t.msPerIter.toFixed(3) + ' ms', gate: 'PASS (rel ' + err.toExponential(1) + ')' });
+      }
+    }
+  }
+
+  /* --- GEMV ladder --- */
+  const bytesGemv = M * K * 4 + K * 4 + M * 4;
+  const ladder = [
+    { id: 'g0', name: 'gemv naive', pipe: pG0, params: [M, K], wg: [Math.ceil(M / 256), 1] },
+    { id: 'g1', name: 'gemv coalesced', pipe: pG1, params: [M, K], wg: [M, 1] },
+    { id: 'g2', name: 'gemv vec4', pipe: pG2, params: [M, K4], wg: [M, 1], v4: true },
+    { id: 'g3', name: 'gemv multirow', pipe: pG3, params: [M, K4], wg: [Math.ceil(M / 8), 1], v4: true },
+    { id: 'g4', name: 'gemv subgroup', pipe: pG4, params: [M, K4], wg: [M, 1], v4: true, needsSg: true },
+  ];
+  let bestGemv = 0, bestName = '';
+  for (const rung of ladder) {
+    if (rung.needsSg && !hasSubgroups) {
+      setProbe(rung.id, 0, '<span class="na">N/A — no subgroups</span>');
+      receipt(rung.name, { result: 'skipped', gate: 'n/a — feature absent' });
+      continue;
+    }
+    status(rung.name + ' — correctness gate…');
+    const entries = [bufW, bufX, bufY, mkParams(device, rung.params[0], rung.params[1])];
+    const bgG = bg(rung.pipe, entries);
+    // gate
+    {
+      const enc = device.createCommandEncoder();
+      enc.clearBuffer(bufY);
+      const pass = enc.beginComputePass();
+      pass.setPipeline(rung.pipe); pass.setBindGroup(0, bgG);
+      pass.dispatchWorkgroups(rung.wg[0], rung.wg[1]); pass.end();
+      device.queue.submit([enc.finish()]);
+      const y = await readBack(device, bufY, M * 4);
+      let maxe = 0;
+      for (const [m, ref] of refY) maxe = Math.max(maxe, relErr(ref, y[m]));
+      if (maxe > REL_TOL) {
+        setProbe(rung.id, 1, '<span class="bad">GATE FAIL ' + maxe.toExponential(1) + '</span>', 'bad');
+        receipt(rung.name, { result: 'max rel err ' + maxe.toExponential(2), gate: 'FAIL — no number' });
+        continue;
+      }
+      status(rung.name + ' — timing…');
+      const t = await timeDispatch(device, rung.pipe, bgG, rung.wg[0], rung.wg[1]);
+      const gbps = bytesGemv / (t.msPerIter * 1e6);
+      if (gbps > bestGemv) { bestGemv = gbps; bestName = rung.name; }
+      const frac = readGBps > 0 ? gbps / readGBps : 0;
+      setProbe(rung.id, frac, fmtGB(gbps) + ' GB/s');
+      receipt(rung.name, { result: fmtGB(gbps) + ' GB/s (' + (frac * 100).toFixed(0) + '% of read ceiling)', bytes: bytesGemv, timing: t.iters + '×' + t.repeats + ' med ' + t.msPerIter.toFixed(3) + ' ms', gate: 'PASS (rel ' + maxe.toExponential(1) + ')' });
+    }
+  }
+
+  /* --- canary --- */
+  status('subgroup canary…');
+  let canaryState = 'NA';
+  if (!hasSubgroups) {
+    setProbe('can', 0, '<span class="na">N/A — no subgroups</span>');
+    receipt('subgroup canary', { result: 'feature absent', gate: 'n/a' });
+  } else {
+    const runCan = async (pipe) => {
+      const enc = device.createCommandEncoder();
+      enc.clearBuffer(bufCanOut);
+      const pass = enc.beginComputePass();
+      pass.setPipeline(pipe);
+      pass.setBindGroup(0, bg(pipe, [bufD, bufCanOut, mkParams(device, CAN_N, 0)]));
+      pass.dispatchWorkgroups(canWG);
+      pass.end();
+      device.queue.submit([enc.finish()]);
+      const slots = await readBack(device, bufCanOut, canWG * 256 * 4);
+      let got = 0; for (let i = 0; i < slots.length; i++) got += slots[i];
+      return relErr(refCan, got);
+    };
+    const errGuard = await runCan(pCanG);
+    const errBare = await runCan(pCanB);
+    const guardOK = errGuard < REL_TOL, bareOK = errBare < REL_TOL;
+    canaryState = !guardOK ? 'SUITE-ERROR' : (bareOK ? 'PASS' : 'FAIL');
+    if (canaryState === 'PASS') setProbe('can', 1, '<span class="ok">PASS</span>');
+    else if (canaryState === 'FAIL') setProbe('can', 1, '<span class="bad">FAIL — engines beware</span>', 'bad');
+    else setProbe('can', 1, '<span class="bad">CONTROL FAILED</span>', 'bad');
+    receipt('canary guarded (control)', { result: 'rel err ' + errGuard.toExponential(2), gate: guardOK ? 'PASS' : 'FAIL — suite bug or unstable driver' });
+    receipt('canary bare (engine pattern)', { result: 'rel err ' + errBare.toExponential(2), gate: bareOK ? 'PASS' : 'FAIL — this driver corrupts the shipped pattern' });
+  }
+
+  /* --- score --- */
+  status('done.');
+  const eff = readGBps > 0 && bestGemv > 0 ? bestGemv / readGBps : 0;
+  state.score = {
+    readGBps, copyGBps: state.copyGBps, triadGBps: state.triadGBps,
+    bestGemvGBps: bestGemv, bestGemvName: bestName, efficiency: eff,
+    canary: canaryState,
+    projections: MODELS.map(m => ({ name: m.name, bytes: m.bytes, toksCeiling: readGBps * 1e9 / m.bytes })),
+  };
+  renderResult();
+  [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no — full re-run realloc; free the big ones
+}
+
+/* ---------- result card ---------- */
+function renderResult() {
+  const s = state.score, d = state.deviceInfo;
+  $('result').style.display = 'block';
+  const devName = [d.vendor, d.architecture].filter(Boolean).join(' · ') || 'GPU';
+  $('c-dev').textContent = devName;
+  $('c-devsub').textContent = (navigator.platform || '') + ' · ' + (navigator.userAgent.match(/(chrome|edg)\/[\d.]+/i) || ['browser'])[0] + ' · webgpu · ' + new Date().toISOString().slice(0, 10);
+  const e2b = s.projections[0];
+  $('c-big').textContent = Math.round(e2b.toksCeiling);
+  $('c-fill').style.width = Math.round(s.efficiency * 100) + '%';
+  $('c-tick').style.left = Math.round(s.efficiency * 100) + '%';
+  $('c-eff').textContent = 'best kernel reaches ' + Math.round(s.efficiency * 100) + '% of read ceiling';
+  $('c-ceil').textContent = fmtGB(s.readGBps) + ' GB/s read';
+  for (let i = 0; i < MODELS.length; i++) $(MODELS[i].id).textContent = '≈' + Math.round(s.projections[i].toksCeiling) + ' tok/s';
+  const stamp = $('c-stamp'), line = $('c-canaryline');
+  if (s.canary === 'PASS') { stamp.textContent = 'CANARY PASS'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: PASS'; }
+  else if (s.canary === 'FAIL') { stamp.textContent = 'CANARY FAIL'; stamp.className = 'canary-stamp fail'; line.textContent = 'SUBGROUP CANARY: FAIL — in-browser engines may output garbage here'; }
+  else { stamp.textContent = 'CANARY N/A'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: ' + (s.canary === 'NA' ? 'N/A (no subgroups feature)' : 'CONTROL FAILED'); }
+  // receipts table
+  const tb = $('rtable').querySelector('tbody');
+  tb.innerHTML = '';
+  for (const r of state.receipts) {
+    const tr = document.createElement('tr');
+    const gate = r.gate || '';
+    const gateCls = gate.startsWith('PASS') ? 'ok' : gate.startsWith('FAIL') ? 'bad' : 'nap';
+    tr.innerHTML = '<td>' + r.probe + '</td><td>' + (r.result || '') + '</td><td>'
+      + (r.bytes ? (r.bytes / (1 << 20)).toFixed(0) + ' MiB' : '—') + '</td><td>'
+      + (r.timing || '—') + '</td><td class="' + gateCls + '">' + gate + '</td>';
+    tb.appendChild(tr);
+  }
+  $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- share PNG (1200×630, always graphite) ---------- */
+function drawSharePNG() {
+  const s = state.score, d = state.deviceInfo;
+  const W = 1200, H = 630, dpr = 2;
+  const cv = document.createElement('canvas');
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d');
+  g.scale(dpr, dpr);
+  const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  g.fillStyle = '#101319'; g.fillRect(0, 0, W, H);
+  // grid
+  g.strokeStyle = '#1A2029'; g.lineWidth = 1;
+  for (let x = 0; x <= W; x += 40) { g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, H); g.stroke(); }
+  for (let y = 0; y <= H; y += 40) { g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(W, y + 0.5); g.stroke(); }
+  // header
+  g.fillStyle = '#8A90A0'; g.font = mono(15, 700);
+  g.fillText('HEADROOM · RUN RECEIPT', 60, 64);
+  const canaryTxt = s.canary === 'PASS' ? 'CANARY PASS' : s.canary === 'FAIL' ? 'CANARY FAIL' : 'CANARY N/A';
+  const cw = g.measureText(canaryTxt).width;
+  g.strokeStyle = s.canary === 'FAIL' ? '#FF7A6E' : '#4CC38A';
+  g.fillStyle = s.canary === 'FAIL' ? '#FF7A6E' : '#4CC38A';
+  g.strokeRect(W - 60 - cw - 24, 42, cw + 24, 32);
+  g.fillText(canaryTxt, W - 60 - cw - 12, 64);
+  g.strokeStyle = '#262D3A'; g.beginPath(); g.moveTo(60, 92); g.lineTo(W - 60, 92); g.stroke();
+  // device
+  const devName = [d.vendor, d.architecture].filter(Boolean).join(' · ') || 'GPU';
+  g.fillStyle = '#E8EAF0'; g.font = '600 26px system-ui, "Helvetica Neue", Arial, sans-serif';
+  g.fillText(devName, 60, 140);
+  g.fillStyle = '#8A90A0'; g.font = mono(14);
+  g.fillText((navigator.platform || '') + ' · webgpu · ' + new Date().toISOString().slice(0, 10), 60, 166);
+  // big number
+  const e2b = Math.round(s.projections[0].toksCeiling);
+  g.fillStyle = '#E8EAF0'; g.font = mono(150, 700);
+  const bigTxt = String(e2b);
+  g.fillText(bigTxt, 60, 330);
+  const bw = g.measureText(bigTxt).width;
+  g.fillStyle = '#8A90A0'; g.font = mono(34);
+  g.fillText('tok/s ceiling', 60 + bw + 20, 330);
+  g.font = mono(15); g.fillStyle = '#8A90A0';
+  g.fillText('GEMMA 4 E2B CLASS · 2.46 GB RESIDENT · FROM MEASURED READ BANDWIDTH', 60, 366);
+  // meter
+  const mx = 60, my = 420, mw = W - 120, mh = 16;
+  g.fillStyle = '#1C212B'; g.fillRect(mx, my, mw, mh);
+  g.fillStyle = '#FF5A3C'; g.fillRect(mx, my, mw * Math.min(1, s.efficiency), mh);
+  g.fillStyle = '#E8EAF0'; g.fillRect(mx + mw * Math.min(1, s.efficiency) - 1.5, my - 6, 3, mh + 12);
+  g.fillStyle = '#8A90A0'; g.font = mono(14);
+  g.fillText('0', mx, my + 44);
+  const effTxt = 'BEST KERNEL ' + Math.round(s.efficiency * 100) + '% OF READ CEILING (' + fmtGB(s.readGBps) + ' GB/s)';
+  g.fillText(effTxt, mx + mw / 2 - g.measureText(effTxt).width / 2, my + 44);
+  const ceilTxt = 'CEILING';
+  g.fillText(ceilTxt, mx + mw - g.measureText(ceilTxt).width, my + 44);
+  // projections row
+  let px = 60;
+  for (const p of s.projections) {
+    g.fillStyle = '#E8EAF0'; g.font = mono(30, 700);
+    const v = '≈' + Math.round(p.toksCeiling);
+    g.fillText(v, px, 530);
+    g.fillStyle = '#8A90A0'; g.font = mono(13);
+    g.fillText(p.name.toUpperCase(), px, 554);
+    px += 380;
+  }
+  // footer
+  g.strokeStyle = '#262D3A'; g.beginPath(); g.moveTo(60, 580); g.lineTo(W - 60, 580); g.stroke();
+  g.fillStyle = '#8A90A0'; g.font = mono(13);
+  g.fillText('MEASURED, NOT VIBES · FP64-GATED · MEDIANS OF 5 · NOTHING LEFT THIS MACHINE', 60, 606);
+  return cv;
+}
+
+/* ---------- receipt JSON ---------- */
+function receiptJSON() {
+  return JSON.stringify({
+    tool: 'headroom', version: VERSION, ts: new Date().toISOString(),
+    ua: navigator.userAgent, device: state.deviceInfo, shapes: state.shapes,
+    method: { timing: 'wall-clock amortized blocks, median of ' + REPEATS, gate: 'FP64 reference, rel err < ' + REL_TOL + ' before any timing', fills: 'deterministic hash-derived, CPU-regenerable' },
+    score: state.score, receipts: state.receipts,
+  }, null, 2);
+}
+
+/* ---------- wiring ---------- */
+function showError(kind, msg) {
+  $('err').style.display = 'block';
+  $('errkind').textContent = kind;
+  $('errmsg').textContent = msg;
+  status('stopped.');
+}
+$('runbtn').addEventListener('click', () => {
+  $('runbtn').disabled = true;
+  runSuite().catch(e => showError(e.kind || 'RUN FAILED', e.msg || String(e && e.message || e)))
+    .finally(() => { $('runbtn').disabled = false; });
+});
+$('againbtn').addEventListener('click', () => { $('result').style.display = 'none'; runSuite().catch(e => showError(e.kind || 'RUN FAILED', e.msg || String(e && e.message || e))); });
+$('methbtn').addEventListener('click', () => { const m = $('methodology'); m.hidden = false; m.scrollIntoView({ behavior: 'smooth' }); });
+$('pngbtn').addEventListener('click', () => {
+  drawSharePNG().toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'headroom-receipt.png';
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, 'image/png');
+});
+$('jsonbtn').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([receiptJSON()], { type: 'application/json' }));
+  a.download = 'headroom-receipt.json';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+$('copybtn').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(receiptJSON());
+  $('copybtn').textContent = 'copied ✓';
+  setTimeout(() => { $('copybtn').textContent = 'copy JSON receipt'; }, 1500);
+});
+</script>
+</body>
+</html>
