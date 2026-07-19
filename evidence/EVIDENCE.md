@@ -57,3 +57,25 @@ current stable Chrome on NVIDIA/D3D12** — static uniformity analysis blocks th
 naive syntax but cannot see this shape, and only behavioral testing catches it.
 Also in this run: read ceiling 589 GB/s, vec4 GEMV at 100.0% of it, E2B
 ceiling 731 tok/s, `subgroupMaxSize: 128` reported by the adapter.
+
+## v0.2 run 2 (2026-07-19, 45 min later) — session reproducibility
+
+`5070-blackwell-win11-v0.2-run2.json` — a second independent run on the same
+machine, 45 minutes after the headline receipt:
+
+- **Bandwidth medians move 1–2% between sessions on Blackwell** (read 584 vs
+  589, copy 519 vs 531, triad 540 vs 545 GB/s) — much tighter than the ±10%
+  we measured on a busy unified-memory M1.
+- vec4 GEMV measured 596 GB/s = 102% of that session's read probe. The card
+  says "kernels saturate the measured read ceiling"; the receipt carries the
+  raw number. A GEMV can land above the probe because the probe pays its own
+  reduction overhead, the x-vector lives in cache, and sessions wobble ±2% —
+  see "Objections, answered" on the page.
+- The fancier rungs are the clock-sensitive ones: subgroup 578→485 GB/s
+  (98%→83%), multirow 560→501. The score only uses best-GEMV vs read ceiling,
+  so rung wobble never moves the headline.
+- **Canary v2 REPRODUCED again — with a bit-identical signature.** 20/20
+  trials wrong at max rel 1.67×10⁻¹, butterfly 0/20 at 5.56×10⁻⁷, guarded
+  control 2.76×10⁻⁸ — the exact values of run 1, because the fills and trial
+  seeds are deterministic. **The miscompile is deterministic, not a flaky
+  race: two runs, 45 minutes apart, produce the same wrong sums.**
