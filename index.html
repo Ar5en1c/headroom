@@ -209,6 +209,9 @@
   .mean .mnums { grid-column: 1 / -1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; color: var(--ink); display: flex; gap: 22px; flex-wrap: wrap; }
   .mean .mnums .dim2 { color: var(--muted); }
   .mean .mnums b { color: var(--accent); font-weight: 700; }
+  #kernelsrc { display: grid; gap: 14px; }
+  #kernelsrc h4 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 8px 0 4px; }
+  #kernelsrc pre { margin: 0; padding: 12px 14px; border: 1px solid var(--edge); background: var(--panel); overflow-x: auto; font-size: 11px; line-height: 1.5; color: var(--ink); }
   .lb-viz { border: 1px solid var(--edge); box-shadow: var(--lift);
     background: radial-gradient(ellipse at 50% -30%, var(--sheen), transparent 60%), var(--panel); }
   #lbcv { display: block; width: 100%; height: 340px; }
@@ -320,7 +323,7 @@
         <table class="proj">
           <tr><td id="l-e2b">gemma 4 e2b qat · 2.46 GB (per-layer embeddings, ~1.05 GB/token est)</td><td class="v" id="p-e2b">—</td></tr>
           <tr><td>8b class q4 · ≈4.7 GB dense</td><td class="v" id="p-8b">—</td></tr>
-          <tr><td>bonsai 27b 1-bit · 3.8 GB dense</td><td class="v" id="p-27b">—</td></tr>
+          <tr><td>bonsai 27b 1-bit · ~3.8 GB (est; weights repo is gated)</td><td class="v" id="p-27b">—</td></tr>
         </table>
         <div class="foot"><span id="c-canaryline">SUBGROUP CANARY: —</span><span id="c-rank"></span><span id="c-ver">HEADROOM</span></div>
       </div>
@@ -355,6 +358,13 @@
         <thead><tr><th>collector</th><th>what ran</th><th>headline</th><th>vs this run</th></tr></thead>
         <tbody></tbody>
       </table></div>
+    </div>
+    <div id="kernels">
+      <details class="xd">
+        <summary>View the kernels: the exact WGSL this page times</summary>
+        <p class="note">Every timed kernel, verbatim, including the canary shapes. If you think a probe is unfair, the code to attack is right here.</p>
+        <div id="kernelsrc"></div>
+      </details>
     </div>
     <div id="receipts">
       <details class="xd">
@@ -810,7 +820,7 @@ const MODELS = [
     // pinned revision, verified 2026-07-19: real split: streams 0.81 GB, gathers 1.31 GB, non-text 0.34 GB
     manifestUrl: 'https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers/resolve/b11b04294163e8e0282580b8c398f5cd52712054/model.safetensors' },
   { id: 'p-8b',  name: '8b class q4',     bytes: 4700000000, active: 4700000000 },
-  { id: 'p-27b', name: 'bonsai 27b 1-bit', bytes: 3800000000, active: 3800000000 },
+  { id: 'p-27b', name: 'bonsai 27b 1-bit', bytes: 3800000000, active: 3800000000, activeEst: true },
 ];
 const REL_TOL = 1e-3, REPEATS = 5, TARGET_BLOCK_MS = 150;
 
@@ -1691,7 +1701,8 @@ const MODEL_MEANING = {
   'p-e2b': { what: "the small multimodal chat model in-browser engines actually ship; drafting, summaries, on-page assistants",
              url: 'https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers' },
   'p-8b':  { what: "the local workhorse class (llama, qwen, gemma at q4); general chat, coding help, RAG" },
-  'p-27b': { what: "big-model reasoning squeezed to 1-bit weights; the shape of where local is going" },
+  'p-27b': { what: "big-model reasoning squeezed to 1-bit weights; the shape of where local is going",
+             obs: { lo: 0.23, hi: 0.41, note: 'bonsai space on our M1, its own meter, short runs' } },
 };
 function feelOf(tok) {
   if (tok < 8) return 'slower than you read';
@@ -1730,6 +1741,11 @@ function renderMeaning() {
       // the one engine we actually measured runs this exact model
       nums.appendChild(cell('the engine we measured (30-50%)', '≈' + engLo + '-' + engHi + ' tok/s', false));
       nums.appendChild(cell('which feels', feelOf(engLo), false));
+    } else if (meta.obs) {
+      const oLo = Math.round(lo * meta.obs.lo), oHi = Math.round(lo * meta.obs.hi);
+      nums.appendChild(cell('engine observed (' + Math.round(meta.obs.lo * 100) + '-' + Math.round(meta.obs.hi * 100) + '%)', '≈' + oLo + '-' + oHi + ' tok/s', false));
+      nums.appendChild(cell('which feels', feelOf(oLo), false));
+      nums.appendChild(cell('source', meta.obs.note, false));
     } else {
       nums.appendChild(cell('engines on this class', 'not measured yet', false));
       nums.appendChild(cell('at the ceiling it feels', feelOf(lo), false));
@@ -2012,22 +2028,26 @@ async function runEngineRound() {
     const inputs = tok.apply_chat_template(messages, { add_generation_prompt: true, return_dict: true });
     const timeGen = async (maxNew) => {
       let n = 0, t0 = 0, tLast = 0;
+      const genStart = performance.now();
       const streamer = new T.TextStreamer(tok, {
         skip_prompt: true,
         callback_function: () => {},
         token_callback_function: () => { const now = performance.now(); if (!n) t0 = now; tLast = now; n++; },
       });
       await model.generate({ ...inputs, max_new_tokens: maxNew, do_sample: false, streamer });
-      return n > 1 ? (n - 1) / ((tLast - t0) / 1000) : 0;
+      return { tokS: n > 1 ? (n - 1) / ((tLast - t0) / 1000) : 0, ttft: n ? t0 - genStart : 0, n };
     };
     say('warmup: 16 tokens…');
     await timeGen(16);
-    const reps = [];
+    const runs = [];
     for (let i = 0; i < 3; i++) {
       say('timing decode: rep ' + (i + 1) + '/3, 128 tokens…');
-      reps.push(await timeGen(128));
+      runs.push(await timeGen(128));
     }
+    const reps = runs.map(r => r.tokS);
     const tokS = median(reps);
+    const ttft = median(runs.map(r => r.ttft));
+    const nTok = runs[runs.length - 1].n;
     const s = state.score;
     const util = s && s.ceilingGBps > 0 ? tokS / (s.ceilingGBps * 1e9 / 0.805e9) : null;
     const res = $('engres');
@@ -2040,17 +2060,17 @@ async function runEngineRound() {
       d.appendChild(document.createTextNode(post));
       res.appendChild(d);
     };
-    lineB('transformers.js decode: ', tokS.toFixed(1) + ' tok/s', ' (median of 3: ' + reps.map(r => r.toFixed(1)).join(', ') + ')');
+    lineB('', nTok + ' TOK · TTFT ' + ttft.toFixed(0) + ' MS · ' + tokS.toFixed(1) + ' TOK/S', ' (transformers.js, median of 3: ' + reps.map(r => r.toFixed(1)).join(', ') + ')');
     if (util != null) lineB('utilization: ', Math.round(util * 100) + '% of your measured ceiling', ' (approx: derived q4 split)');
     line('same model, same page, same discipline as the probes above.');
     res.hidden = false;
     say('engine round complete.');
     receipt('engine round · transformers.js webgpu', {
       result: tokS.toFixed(1) + ' tok/s decode, ' + (util != null ? Math.round(util * 100) + '% of measured ceiling (approx)' : 'no ceiling to compare'),
-      timing: '3 reps x 128 tokens, warmup excluded, medians; model ' + ENG_MODEL,
+      timing: '3 reps x 128 tokens, warmup excluded, medians; ttft ' + ttft.toFixed(0) + ' ms; model ' + ENG_MODEL,
       gate: 'n/a (engine, not a gated kernel)',
     });
-    if (s) s.engine = { runner: 'transformers.js@4.2.0 webgpu', model: ENG_MODEL, decodeTokS: +tokS.toFixed(2), reps: reps.map(r => +r.toFixed(2)), utilApprox: util != null ? +util.toFixed(3) : null };
+    if (s) s.engine = { runner: 'transformers.js@4.2.0 webgpu', model: ENG_MODEL, decodeTokS: +tokS.toFixed(2), ttftMs: +ttft.toFixed(0), reps: reps.map(r => +r.toFixed(2)), utilApprox: util != null ? +util.toFixed(3) : null };
   } catch (e) {
     say('engine round failed: ' + String(e && e.message || e).slice(0, 140));
   } finally {
@@ -2060,6 +2080,26 @@ async function runEngineRound() {
 }
 $('engbtn').addEventListener('click', () => { runEngineRound(); });
 
+(function renderKernels() {
+  const el = $('kernelsrc');
+  if (!el) return;
+  const entries = [
+    ['read ceiling: grid-stride pure-read reduce', SH_READSUM],
+    ['triad: C = A + s*B', SH_TRIAD],
+    ['gemv naive: 1 thread per row, uncoalesced', SH_G0],
+    ['gemv coalesced: workgroup per row, tree reduce', SH_G1],
+    ['gemv vec4: vectorized loads', SH_G2],
+    ['gemv multirow: 8 rows per workgroup', SH_G3],
+    ['gemv subgroup: subgroupAdd, uniform flow', SH_G4],
+    ['canary v2, the shipped engine reduce shape (bare)', SH_CAN2(CAN2_REDUCE_BARE)],
+    ['canary control: subgroupShuffleXor butterfly', SH_CAN2(CAN2_REDUCE_BFLY)],
+  ];
+  for (const [name, src] of entries) {
+    const h = document.createElement('h4'); h.textContent = name;
+    const pre = document.createElement('pre'); pre.textContent = String(src).trim();
+    el.appendChild(h); el.appendChild(pre);
+  }
+})();
 function uaOS() {
   const u = navigator.userAgent;
   if (u.includes('Android')) return 'android';
