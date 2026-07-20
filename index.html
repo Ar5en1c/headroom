@@ -194,6 +194,15 @@
   #leaderboard { margin-top: 52px; }
   #leaderboard .lb-note { font-size: 13.5px; color: var(--muted); max-width: 72ch; margin: 10px 0 14px; }
   #leaderboard td a { color: var(--muted); }
+  #meaning { margin-top: 34px; }
+  #meaning h3 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+  .mean { display: grid; grid-template-columns: minmax(150px, 1.1fr) 2fr; gap: 4px 18px; padding: 12px 0; border-bottom: 1px dashed var(--grid); }
+  .mean .mname { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13.5px; font-weight: 700; }
+  .mean .mname a { color: inherit; text-decoration-color: var(--edge); }
+  .mean .mwhat { color: var(--muted); font-size: 13.5px; }
+  .mean .mnums { grid-column: 1 / -1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; color: var(--ink); display: flex; gap: 22px; flex-wrap: wrap; }
+  .mean .mnums .dim2 { color: var(--muted); }
+  .mean .mnums b { color: var(--accent); font-weight: 700; }
   .lb-viz { border: 1px solid var(--edge); box-shadow: var(--lift);
     background: radial-gradient(ellipse at 50% -30%, var(--sheen), transparent 60%), var(--panel); }
   #lbcv { display: block; width: 100%; height: 340px; }
@@ -271,12 +280,6 @@
     </div>
   </section>
 
-  <section id="runsheet">
-    <div class="runhead"><h2>RUN SHEET</h2><span id="devline" class="num">detecting device…</span></div>
-    <div id="statusline">preparing…</div>
-    <div id="probes"></div>
-  </section>
-
   <section id="result">
     <div class="result-grid">
       <div class="card" id="card">
@@ -307,6 +310,11 @@
         <p class="note">Projections are measured read bandwidth ÷ bytes touched per token, at empty context; derived manifests make bytes-per-token exact, estimates fall back to an honest band. Real engines land below the ceiling; the gap is engine overhead (see methodology).</p>
       </div>
     </div>
+    <div id="meaning">
+      <h3>What your ceiling means</h3>
+      <div id="meanrows"></div>
+      <p class="note" id="meanref">Reference points, measured by this page and receipted: an RTX 5070 reads 589 GB/s (88% of its 672 spec) for a ceiling of ≈731 tok/s on gemma 4 e2b, and the shipped engine decodes 217 (30%). An Apple M1 reads 51-56 GB/s for a ceiling of ≈63-69; the same engine does 30-40 (~50%). The gap is launch overhead, not bandwidth: that is the headroom. <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence" target="_blank" rel="noopener">receipts</a> · <a href="#" id="meanmeth">methodology</a></p>
+    </div>
     <div id="imports" hidden>
       <h3 style="font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--edge);padding-bottom:6px;margin-top:34px;">Imported receipts — other collectors vs this device's ceiling</h3>
       <div class="rtable-wrap"><table class="rtable" id="itable">
@@ -321,6 +329,12 @@
         <tbody></tbody>
       </table></div>
     </div>
+  </section>
+
+  <section id="runsheet">
+    <div class="runhead"><h2>RUN SHEET</h2><span id="devline" class="num">detecting device…</span></div>
+    <div id="statusline">preparing…</div>
+    <div id="probes"></div>
   </section>
 
   <section id="leaderboard" hidden>
@@ -866,7 +880,11 @@ function drawScene(dt) {
   // per size/theme into an offscreen canvas; each frame is then just one
   // sector fill, one blit, and the needle stroke
   const key = W + '|' + H + '|' + dpr + '|' + ink;
-  if (scene.faceKey !== key) { scene.faceKey = key; scene.face = buildFace(W, H, dpr, phiMax, R, V, mix); }
+  if (scene.faceKey !== key) {
+    scene.faceKey = key;
+    scene.face = buildFace(W, H, dpr, phiMax, R, V, mix);
+    scene.needle = buildNeedle(R, dpr, accent);
+  }
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
   g.beginPath();
@@ -875,16 +893,30 @@ function drawScene(dt) {
   g.closePath();
   g.fillStyle = mix(accent, 5); g.fill();
   g.drawImage(scene.face, scene.ox, scene.oy, W, H);
-  const blade = (val, alpha, lw, glow) => {
-    const [n1x, n1y] = pt(val, 0.30), [n2x, n2y] = pt(val, 0.985);
+  // the needle is a pre-rendered sprite (glow baked in): per frame it is
+  // one rotated blit instead of a viewport-length shadowed stroke
+  const blade = (val, alpha) => {
+    g.save();
+    g.translate(cx, cy);
+    g.rotate(phi(val));
     g.globalAlpha = alpha;
-    g.strokeStyle = accent; g.lineWidth = lw;
-    if (glow) { g.shadowColor = accent; g.shadowBlur = 16; }
-    g.beginPath(); g.moveTo(n1x, n1y); g.lineTo(n2x, n2y); g.stroke();
-    g.shadowBlur = 0; g.globalAlpha = 1;
+    g.drawImage(scene.needle, -22, -(R * 0.985 + 15), 44, R * 0.685 + 30);
+    g.restore();
+    g.globalAlpha = 1;
   };
-  if (scene.sweeping) for (let k = 5; k >= 1; k--) blade(Math.max(0, v - k * 0.03), 0.06 * (6 - k) / 6, 3, false);
-  blade(v, 1, 3, true);
+  if (scene.sweeping) for (let k = 5; k >= 1; k--) blade(Math.max(0, v - k * 0.03), 0.07 * (6 - k) / 6);
+  blade(v, 1);
+}
+function buildNeedle(R, dpr, accent) {
+  const len = R * 0.685, w = 44;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(w * dpr); cv.height = Math.round((len + 30) * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.strokeStyle = accent; g.lineWidth = 3;
+  g.shadowColor = accent; g.shadowBlur = 16;
+  g.beginPath(); g.moveTo(w / 2, 15); g.lineTo(w / 2, len + 15); g.stroke();
+  return cv;
 }
 function buildFace(W, H, dpr, phiMax, R, V, mix) {
   const face = document.createElement('canvas');
@@ -927,7 +959,7 @@ function buildFace(W, H, dpr, phiMax, R, V, mix) {
   return face;
 }
 function sceneStep(now) {
-  if (now - scene.last < 33) return;
+  if (now - scene.last < 16) return;
   const dt = Math.min(0.1, (now - scene.last) / 1000);
   scene.last = now;
   // a timed block is in flight: freeze the whole scene so canvas raster
@@ -947,7 +979,7 @@ function sceneStep(now) {
     }
   } else {
     const d = scene.tv - scene.v;
-    scene.v += d * Math.min(1, dt * 3.2);
+    scene.v += d * Math.min(1, dt * 4.5);
     scene.sweeping = Math.abs(d) > 0.06;
     if (scene.mode === 'done' && Math.abs(d) < 0.01) {
       scene.idle += dt;
@@ -1577,11 +1609,57 @@ async function runSuite() {
     })),
   };
   renderResult();
+  renderMeaning();
   updateRank();
   sceneDone();
   [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no — full re-run realloc; free the big ones
 }
 
+const MODEL_MEANING = {
+  'p-e2b': { what: "the small multimodal chat model in-browser engines actually ship; drafting, summaries, on-page assistants",
+             url: 'https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers' },
+  'p-8b':  { what: "the local workhorse class (llama, qwen, gemma at q4); general chat, coding help, RAG" },
+  'p-27b': { what: "big-model reasoning squeezed to 1-bit weights; the shape of where local is going" },
+};
+function feelOf(tok) {
+  if (tok < 8) return 'slower than you read';
+  if (tok < 25) return 'comfortable chat pace';
+  if (tok < 60) return 'faster than you read';
+  return 'agent-grade: walls of text, instantly';
+}
+function renderMeaning() {
+  const s = state.score; if (!s) return;
+  const wrap = $('meanrows');
+  wrap.textContent = '';
+  for (const p of s.projections) {
+    const meta = MODEL_MEANING[MODELS.find(m => m.name === p.name)?.id] || {};
+    const lo = Math.round(p.tokLo), hi = Math.round(p.tokHi);
+    const ceilTxt = p.derived || lo === hi ? '≈' + lo : lo + '-' + hi;
+    const engLo = Math.round(lo * 0.30), engHi = Math.round(lo * 0.50);
+    const div = document.createElement('div');
+    div.className = 'mean';
+    const nm = document.createElement('div'); nm.className = 'mname';
+    if (meta.url) {
+      const a = document.createElement('a'); a.href = meta.url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = p.name; nm.appendChild(a);
+    } else nm.textContent = p.name;
+    const wh = document.createElement('div'); wh.className = 'mwhat'; wh.textContent = meta.what || '';
+    const nums = document.createElement('div'); nums.className = 'mnums';
+    const cell = (label, val, hot) => {
+      const sp = document.createElement('span');
+      const l = document.createElement('span'); l.className = 'dim2'; l.textContent = label + ' ';
+      sp.appendChild(l);
+      const v2 = document.createElement(hot ? 'b' : 'span'); v2.textContent = val;
+      sp.appendChild(v2);
+      return sp;
+    };
+    nums.appendChild(cell('your ceiling', ceilTxt + ' tok/s', true));
+    nums.appendChild(cell('engines today (30-50%)', '≈' + engLo + '-' + engHi + ' tok/s', false));
+    nums.appendChild(cell('which feels', feelOf(engLo), false));
+    div.appendChild(nm); div.appendChild(wh); div.appendChild(nums);
+    wrap.appendChild(div);
+  }
+}
 /* ---------- result card ---------- */
 function renderResult() {
   const s = state.score, d = state.deviceInfo;
@@ -1733,6 +1811,7 @@ $('runbtn').addEventListener('click', () => {
 });
 $('againbtn').addEventListener('click', () => { $('result').style.display = 'none'; runSuite().catch(e => showError(e.kind || 'RUN FAILED', e.msg || String(e && e.message || e))); });
 $('methbtn').addEventListener('click', () => { const m = $('methodology'); m.hidden = false; m.scrollIntoView({ behavior: 'smooth' }); });
+$('meanmeth').addEventListener('click', (e) => { e.preventDefault(); const m = $('methodology'); m.hidden = false; m.scrollIntoView({ behavior: 'smooth' }); });
 $('pngbtn').addEventListener('click', () => {
   drawSharePNG().toBlob(b => {
     const a = document.createElement('a');
