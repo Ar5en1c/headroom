@@ -55,8 +55,15 @@
 
   /* landing */
   #hero { padding: 44px 0 32px; }
-  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr); gap: 44px; align-items: center; margin-top: 8px; }
-  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } .hero-gauge { max-width: 440px; margin: 0 auto; width: 100%; } }
+  #hero { position: relative; min-height: 86vh; display: flex; flex-direction: column; justify-content: center; }
+  #scenecv { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: 100vw; height: 100%; pointer-events: none; }
+  .hero-inner, .hero-stats { position: relative; z-index: 1; }
+  .hero-copy { max-width: 58ch; }
+  .scene-legend { display: flex; align-items: center; gap: 9px; margin-top: 22px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); flex-wrap: wrap; }
+  .sl-swatch { width: 22px; height: 8px; flex-shrink: 0; }
+  .sl-band { background: color-mix(in srgb, var(--muted) 30%, transparent); }
+  .sl-line { background: var(--accent); height: 3px; margin-left: 10px; box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+  @media (max-width: 900px) { #hero { min-height: 78vh; } }
   .eyebrow { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); display: flex; align-items: flex-start; gap: 9px; margin-bottom: 16px; line-height: 1.5; }
   .edot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 9px color-mix(in srgb, var(--pass) 60%, transparent); animation: dotpulse 1.6s ease-in-out infinite; flex-shrink: 0; margin-top: 4px; }
   #hero h1 {
@@ -67,9 +74,6 @@
   #hero h1 .dim { color: var(--muted); }
   #hero p.lede { max-width: 56ch; font-size: 17px; margin: 0 0 10px; }
   #hero p.fine { max-width: 56ch; font-size: 13px; color: var(--muted); margin: 0 0 26px; }
-  .hero-gauge { position: relative; }
-  #gaugecv { display: block; width: 100%; aspect-ratio: 1 / 0.74; }
-  .gauge-cap { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--muted) 80%, transparent); text-align: center; margin-top: 4px; max-width: 46ch; margin-left: auto; margin-right: auto; line-height: 1.6; }
   .cta-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   button.run {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -212,20 +216,21 @@
   </header>
 
   <section id="hero">
-    <div class="eyebrow"><span class="edot"></span>webgpu · fp64-gated · receipts attached</div>
-    <h1>How fast is your machine, <span class="dim">really?</span></h1>
-    <div class="hero-grid">
+    <canvas id="scenecv" aria-hidden="true"></canvas>
+    <div class="hero-inner">
+      <div class="eyebrow"><span class="edot"></span>webgpu · fp64-gated · receipts attached</div>
+      <h1>How fast is your machine, <span class="dim">really?</span></h1>
       <div class="hero-copy">
         <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI — the number that decides your tokens/s. It also checks your GPU driver for the <b>subgroup bug</b> that makes some in-browser LLMs silently produce garbage.</p>
-        <p class="fine">No model download: the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes per token). No account, no ads, no telemetry. Your numbers stay in this browser until you choose to post them, and the community board is one click of sharing, not collection. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
+        <p class="fine">No model download: the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes per token). No account, no ads, no telemetry. Your numbers stay in this browser until you choose to post them, and the community board is one click of sharing, not collection.</p>
         <div class="cta-row">
           <button class="run" id="runbtn">RUN THE TEST →</button>
           <button class="ghost" id="methbtn">methodology</button>
         </div>
-      </div>
-      <div class="hero-gauge">
-        <canvas id="gaugecv"></canvas>
-        <div class="gauge-cap">the dial is the product: engines idle at 30-50% of the ceiling. the rest is headroom.</div>
+        <div class="scene-legend">
+          <span class="sl-swatch sl-band"></span>engines today: 30-50% of ceiling
+          <span class="sl-swatch sl-line"></span>redline: your 100%
+        </div>
       </div>
     </div>
     <div class="hero-stats">
@@ -839,98 +844,154 @@ function animStop(finished) {
    down the sheet as each probe lands. */
 const GATE_ROWS = new Set(['dev', 'fill', 'ref', 'can']);
 const measSeen = {};
-/* ---------- hero gauge: the product story as an instrument dial ----------
-   Scale is % of YOUR ceiling (no fabricated absolutes). The 30-50% band is
-   the receipted cross-device finding for today's in-browser engines. */
-const gauge = { val: 0, t0: 0, raf: 0, idleT: 0 };
-const GAUGE_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
-function drawGauge() {
-  const cv = $('gaugecv');
+/* ---------- hero scene: standing inside the instrument ----------
+   A colossal dial arc spans the full viewport width; scale numerals are the
+   background texture, byte-particles stream along the arc, and the needle is
+   a viewport-length blade that sweeps to the redline on load. Scale is % of
+   YOUR ceiling; the 30-50% band is the receipted cross-device finding. All
+   randomness is hash-derived (same culture as the probes). */
+const scene = { v: 0, t0: 0, raf: 0, idle: 0, last: 0, ox: 0, oy: 0, tx: 0, ty: 0, parts: null, sweeping: true };
+const SCENE_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SCENE_K = 1.22;                    // scale runs 0..122%; redline sits at 100
+function sceneParts(n) {
+  const P = [];
+  for (let i = 0; i < n; i++) {
+    P.push({
+      s: Math.abs(detVal(i, 0x51DE0001)) * 1.0,
+      r: 0.885 + Math.abs(detVal(i, 0x51DE0002)) * 0.07,
+      sp: 0.06 + Math.abs(detVal(i, 0x51DE0003)) * 0.16,
+      w: 6 + Math.abs(detVal(i, 0x51DE0004)) * 6,
+    });
+  }
+  return P;
+}
+function drawScene(dt) {
+  const cv = $('scenecv');
   if (!cv || !cv.clientWidth) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const W = cv.clientWidth, H = W * 0.74;
+  const W = cv.clientWidth, H = cv.clientHeight;
   if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
   const cs = getComputedStyle(document.documentElement);
   const V = (n) => cs.getPropertyValue(n).trim();
-  const ink = V('--ink'), muted = V('--muted'), accent = V('--accent'), edge = V('--edge'), gridc = V('--grid');
+  const ink = V('--ink'), muted = V('--muted'), accent = V('--accent'), gridc = V('--grid');
+  const mix = (c, p) => 'color-mix(in srgb, ' + c + ' ' + p + '%, transparent)';
   const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-  const R = Math.min(W * 0.44, (H - 36) / 1.55);
-  const cx = W / 2, cy = R + 14;
-  const a0 = 2.618, a1 = 0.524 + Math.PI * 2;           // 210° over the top to -30°
-  const ang = (f) => a0 + (a1 - a0) * f;
-  const px = (f, r) => [cx + r * Math.cos(ang(f)), cy + r * Math.sin(ang(f))];
-  // face: faint concentric arcs (chart-paper)
+  const narrow = W < 700;
+  const phiMax = narrow ? 0.99 : 0.873;                 // wider sweep on phones
+  const R = (W / 2) / Math.sin(phiMax);
+  const cx = W / 2 + scene.ox, cy = H * 0.06 + R + scene.oy;
+  const phi = (s) => -phiMax + (s / SCENE_K) * 2 * phiMax;
+  const pt = (s, rf) => { const p = phi(s); return [cx + R * rf * Math.sin(p), cy - R * rf * Math.cos(p)]; };
+  const arc = (rf, s0, s1) => { g.beginPath(); g.arc(cx, cy, R * rf, -Math.PI / 2 + phi(s0), -Math.PI / 2 + phi(s1)); g.stroke(); };
+  const v = Math.max(0, Math.min(SCENE_K, scene.v));
+  // swept sector: the measured area glows faintly up to the needle
+  g.beginPath();
+  g.arc(cx, cy, R * 0.995, -Math.PI / 2 + phi(0), -Math.PI / 2 + phi(v));
+  g.arc(cx, cy, R * 0.86, -Math.PI / 2 + phi(v), -Math.PI / 2 + phi(0), true);
+  g.closePath();
+  g.fillStyle = mix(accent, 5); g.fill();
+  // concentric face arcs
   g.lineWidth = 1; g.strokeStyle = gridc;
-  for (const rr of [0.58, 0.73, 0.88]) { g.beginPath(); g.arc(cx, cy, R * rr, a0, a1); g.stroke(); }
-  // engines-today band (30-50%), drawn under the main arc
-  g.lineWidth = Math.max(7, R * 0.075); g.strokeStyle = 'color-mix(in srgb, ' + muted + ' 30%, transparent)';
-  g.beginPath(); g.arc(cx, cy, R, ang(0.30), ang(0.50)); g.stroke();
-  // main arc
-  g.lineWidth = 2; g.strokeStyle = edge;
-  g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
-  // ticks
-  for (let i = 0; i <= 20; i++) {
-    const f = i / 20, major = i % 5 === 0;
-    const [x1, y1] = px(f, R), [x2, y2] = px(f, R - (major ? R * 0.085 : R * 0.045));
-    g.lineWidth = major ? 2 : 1; g.strokeStyle = major ? ink : muted;
+  for (const rf of [0.86, 0.93]) arc(rf, 0, SCENE_K);
+  g.lineWidth = 2; g.strokeStyle = mix(ink, 30); arc(1.0, 0, SCENE_K);
+  // engines-today band
+  g.lineWidth = Math.max(8, R * 0.012); g.strokeStyle = mix(muted, 30);
+  arc(1.0, 0.30, 0.50);
+  // ticks + giant scale numerals
+  for (let i = 0; i <= Math.round(SCENE_K / 0.025); i++) {
+    const s = i * 0.025, major = i % 10 === 0 && s <= 1.001;
+    const [x1, y1] = pt(s, 1.0), [x2, y2] = pt(s, major ? 0.972 : 0.988);
+    g.lineWidth = major ? 2.5 : 1; g.strokeStyle = major ? mix(ink, 85) : mix(muted, 45);
     g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
     if (major) {
-      const [tx, ty] = px(f, R - R * 0.17);
-      g.fillStyle = muted; g.font = mono(Math.max(9, R * 0.052));
-      const lbl = String(i * 5);
-      g.fillText(lbl, tx - g.measureText(lbl).width / 2, ty + 3);
+      const lbl = String(Math.round(s * 100));
+      const fs = Math.max(30, Math.min(76, W * 0.05));
+      g.font = mono(fs, 700); g.fillStyle = mix(muted, 20);
+      const [tx, ty] = pt(s, 0.80);
+      g.fillText(lbl, tx - g.measureText(lbl).width / 2, ty + fs * 0.36);
     }
   }
-  // ceiling marker at 100%
-  const [cx1, cy1] = px(1, R * 1.04), [cx2, cy2] = px(1, R * 0.82);
-  g.lineWidth = 3; g.strokeStyle = accent;
-  g.beginPath(); g.moveTo(cx1, cy1); g.lineTo(cx2, cy2); g.stroke();
-  g.fillStyle = accent; g.font = mono(Math.max(9, R * 0.055), 700);
-  const cl = 'CEILING';
-  g.fillText(cl, cx1 - g.measureText(cl).width / 2, cy1 + 13);
-  // engines label at band midpoint
-  const [ex, ey] = px(0.40, R * 1.1);
-  g.fillStyle = muted; g.font = mono(Math.max(8.5, R * 0.048));
-  const el = 'ENGINES TODAY';
-  g.fillText(el, ex - g.measureText(el).width / 2, ey);
-  // needle
-  const f = Math.max(0, Math.min(1.004, gauge.val));
-  const [nx, ny] = px(f, R * 0.86);
-  g.strokeStyle = accent; g.lineWidth = 2.5;
-  g.shadowColor = accent; g.shadowBlur = 10;
-  g.beginPath(); g.moveTo(cx, cy); g.lineTo(nx, ny); g.stroke();
+  // the redline
+  const [r1x, r1y] = pt(1, 0.845), [r2x, r2y] = pt(1, 1.045);
+  g.strokeStyle = accent; g.lineWidth = 3.5;
+  g.shadowColor = accent; g.shadowBlur = 14;
+  g.beginPath(); g.moveTo(r1x, r1y); g.lineTo(r2x, r2y); g.stroke();
   g.shadowBlur = 0;
-  g.fillStyle = ink; g.beginPath(); g.arc(cx, cy, R * 0.035, 0, 7); g.fill();
-  // hub caption
-  g.fillStyle = muted; g.font = mono(Math.max(9, R * 0.05));
-  const hc = '% OF YOUR CEILING';
-  g.fillText(hc, cx - g.measureText(hc).width / 2, cy - R * 0.12);
-}
-function gaugeFrame(now) {
-  gauge.raf = requestAnimationFrame(gaugeFrame);
-  if (!gauge.t0) gauge.t0 = now;
-  const t = (now - gauge.t0) / 1500;
-  if (t < 1) {
-    const e = 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2); // ease-out with overshoot
-    gauge.val = Math.max(0, e);
-  } else {
-    gauge.idleT += 0.016;
-    gauge.val = 1 + Math.sin(gauge.idleT * 1.7) * 0.004;               // instrument idle wobble
+  g.fillStyle = accent; g.font = mono(12, 700);
+  const cl = 'CEILING';
+  const [clx, cly] = pt(1, 1.075);
+  g.fillText(cl, Math.min(clx - g.measureText(cl).width / 2, W - g.measureText(cl).width - 8), cly + 4);
+  // byte particles streaming along the arc
+  if (!scene.parts) scene.parts = sceneParts(narrow ? 16 : 34);
+  g.fillStyle = accent; g.shadowColor = accent; g.shadowBlur = 7;
+  for (const p of scene.parts) {
+    if (!SCENE_STILL && !scene.holdParts) {
+      p.s += p.sp * dt;
+      if (p.s > Math.min(v, 1.0)) p.s = 0;
+    }
+    const a = -Math.PI / 2 + phi(p.s);
+    const [x, y] = pt(p.s, p.r);
+    g.save(); g.translate(x, y); g.rotate(a + Math.PI / 2);
+    g.fillRect(-p.w / 2, -2.5, p.w, 5);
+    g.restore();
   }
-  drawGauge();
-  if (t > 8) { cancelAnimationFrame(gauge.raf); gauge.val = 1; drawGauge(); }
+  g.shadowBlur = 0;
+  // the needle blade (with ghost trail while sweeping)
+  const blade = (val, alpha, lw) => {
+    const [n1x, n1y] = pt(val, 0.30), [n2x, n2y] = pt(val, 0.985);
+    g.globalAlpha = alpha;
+    g.strokeStyle = accent; g.lineWidth = lw;
+    g.shadowColor = accent; g.shadowBlur = 16;
+    g.beginPath(); g.moveTo(n1x, n1y); g.lineTo(n2x, n2y); g.stroke();
+    g.shadowBlur = 0; g.globalAlpha = 1;
+  };
+  if (scene.sweeping) for (let k = 5; k >= 1; k--) blade(Math.max(0, v - k * 0.03), 0.05 * (6 - k) / 6, 3);
+  blade(v, 1, 3);
 }
-function gaugeInit() {
-  if (!$('gaugecv')) return;
-  if (GAUGE_STILL) { gauge.val = 1; drawGauge(); return; }
-  gauge.raf = requestAnimationFrame(gaugeFrame);
-  addEventListener('resize', drawGauge);
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => drawGauge());
+function sceneStep(now) {
+  if (now - scene.last < 33) return;
+  const dt = Math.min(0.1, (now - scene.last) / 1000);
+  scene.last = now;
+  if ($('hero').style.display === 'none') return;
+  if (!scene.t0) scene.t0 = now;
+  const t = (now - scene.t0) / 1700;
+  if (t < 1) {
+    const e = 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+    scene.v = Math.max(0, e);
+    scene.sweeping = true;
+  } else {
+    scene.sweeping = false;
+    scene.idle += dt;
+    scene.v = 1 + Math.sin(scene.idle * 1.6) * 0.0035;
+  }
+  scene.ox += (scene.tx - scene.ox) * 0.05;
+  scene.oy += (scene.ty - scene.oy) * 0.05;
+  drawScene(dt);
 }
-gaugeInit();
+function sceneFrame(now) {
+  scene.raf = requestAnimationFrame(sceneFrame);
+  sceneStep(now);
+}
+function sceneInit() {
+  if (!$('scenecv')) return;
+  if (SCENE_STILL) { scene.v = 1; drawScene(0); addEventListener('resize', () => drawScene(0)); return; }
+  if (matchMedia('(hover: hover)').matches) {
+    addEventListener('mousemove', (e) => {
+      scene.tx = (e.clientX / innerWidth - 0.5) * 20;
+      scene.ty = (e.clientY / innerHeight - 0.5) * 12;
+    }, { passive: true });
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => drawScene(0));
+  scene.last = performance.now();
+  scene.raf = requestAnimationFrame(sceneFrame);
+  // some embedded/idle renderers starve rAF; a low-rate timer keeps the
+  // instrument alive there without doubling work where rAF is healthy
+  setInterval(() => { const n = performance.now(); if (n - scene.last > 120) sceneStep(n); }, 100);
+}
+sceneInit();
 
 function probeRow(id, name, sub, idx) {
   const div = document.createElement('div');
