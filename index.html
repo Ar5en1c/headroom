@@ -58,6 +58,17 @@
   #hero { position: relative; min-height: 86vh; display: flex; flex-direction: column; justify-content: center; }
   #scenecv { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: 100vw; height: 100%; pointer-events: none; }
   .hero-inner, .hero-stats { position: relative; z-index: 1; }
+  body.running .hero-inner, body.running .hero-stats { display: none; }
+  body.running #hero { min-height: 72vh; }
+  #dialreadout { position: relative; z-index: 1; text-align: center; margin-top: 12vh; }
+  .dr-big { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: clamp(44px, 7vw, 92px); letter-spacing: -0.03em; line-height: 1; }
+  .dr-unit { font-size: clamp(16px, 2vw, 26px); color: var(--muted); font-weight: 400; margin-left: 12px; }
+  .dr-badge[hidden] { display: none; }
+  .dr-badge { display: inline-block; vertical-align: middle; margin-left: 16px; font-size: 13px; letter-spacing: 0.12em; border: 1.5px solid var(--fail); color: var(--fail); padding: 5px 10px; }
+  .dr-badge.okb { border-color: var(--pass); color: var(--pass); }
+  .dr-sub { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; color: var(--muted); margin-top: 14px; letter-spacing: 0.04em; min-height: 1.5em; }
+  .dr-bytes { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; color: color-mix(in srgb, var(--muted) 70%, transparent); margin-top: 6px; letter-spacing: 0.08em; }
+  .dr-hint { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: color-mix(in srgb, var(--muted) 65%, transparent); margin-top: 26px; }
   .hero-copy { max-width: 58ch; }
   .scene-legend { display: flex; align-items: center; gap: 9px; margin-top: 22px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); flex-wrap: wrap; }
   .sl-swatch { width: 22px; height: 8px; flex-shrink: 0; }
@@ -100,10 +111,6 @@
   #runsheet { display: none; padding-top: 34px; }
   :root { --lift: 0 28px 70px -38px rgba(23, 24, 26, 0.35); --sheen: color-mix(in srgb, var(--ink) 3%, transparent); }
   @media (prefers-color-scheme: dark) { :root { --lift: 0 32px 80px -36px rgba(0, 0, 0, 0.7); --sheen: rgba(255, 255, 255, 0.03); } }
-  #animwrap { border: 1px solid var(--edge); margin: 16px 0 6px; box-shadow: var(--lift);
-    background: radial-gradient(ellipse at 50% -30%, var(--sheen), transparent 60%), var(--panel); }
-  #animcv { display: block; width: 100%; height: 128px; }
-  #animcap { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--edge); min-height: 2.6em; }
   .runhead { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
   .runhead h2 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   #devline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); letter-spacing: 0.04em; }
@@ -184,6 +191,20 @@
   #leaderboard { margin-top: 52px; }
   #leaderboard .lb-note { font-size: 13.5px; color: var(--muted); max-width: 72ch; margin: 10px 0 14px; }
   #leaderboard td a { color: var(--muted); }
+  .lb-viz { border: 1px solid var(--edge); box-shadow: var(--lift);
+    background: radial-gradient(ellipse at 50% -30%, var(--sheen), transparent 60%), var(--panel); }
+  #lbcv { display: block; width: 100%; height: 340px; }
+  .lb-legend { display: flex; gap: 22px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin-top: 10px; letter-spacing: 0.04em; }
+  .lbsw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; }
+  .lbsw-ok { background: var(--ink); }
+  .lbsw-bad { background: var(--fail); box-shadow: 0 0 8px color-mix(in srgb, var(--fail) 55%, transparent); }
+  .lbsw-na { border: 1.5px solid var(--muted); }
+  .lb-aggs { margin-top: 18px; display: grid; gap: 7px; font-size: 12.5px; }
+  .lb-aggs .aggh { font-size: 10.5px; letter-spacing: 0.14em; color: var(--muted); margin-top: 10px; }
+  .lb-aggs .agg { display: flex; gap: 18px; flex-wrap: wrap; border-bottom: 1px dashed var(--grid); padding-bottom: 7px; }
+  .lb-aggs .agg b { font-weight: 700; min-width: 90px; }
+  .lb-aggs .agg span { color: var(--muted); }
+  .lb-aggs .agg .hot { color: var(--fail); font-weight: 600; }
   .lb-pass { color: var(--pass); font-weight: 600; }
   .lb-fail { color: var(--fail); font-weight: 600; }
   .lb-na { color: var(--na); font-weight: 600; }
@@ -217,6 +238,12 @@
 
   <section id="hero">
     <canvas id="scenecv" aria-hidden="true"></canvas>
+    <div id="dialreadout" hidden>
+      <div class="dr-big num"><span id="dr-num">—</span><span class="dr-unit" id="dr-unit"></span><span class="dr-badge" id="dr-canary" hidden></span></div>
+      <div class="dr-sub num" id="dr-sub">preparing…</div>
+      <div class="dr-bytes num" id="dr-bytes"></div>
+      <div class="dr-hint">run sheet below ↓</div>
+    </div>
     <div class="hero-inner">
       <div class="eyebrow"><span class="edot"></span>webgpu · fp64-gated · receipts attached</div>
       <h1>How fast is your machine, <span class="dim">really?</span></h1>
@@ -244,10 +271,6 @@
   <section id="runsheet">
     <div class="runhead"><h2>RUN SHEET</h2><span id="devline" class="num">detecting device…</span></div>
     <div id="statusline">preparing…</div>
-    <div id="animwrap">
-      <canvas id="animcv"></canvas>
-      <div id="animcap">setting up: deterministic weights, FP64 referee on the CPU</div>
-    </div>
     <div id="probes"></div>
   </section>
 
@@ -298,13 +321,16 @@
   </section>
 
   <section id="leaderboard" hidden>
-    <h3>Community ceilings: hardware only, receipts attached</h3>
-    <p class="lb-note">Opt-in by design: the button copies your receipt and opens a public GitHub issue with it (hardware, browser version string, and measurements; no account data appears on the board). A validation action checks structure and merges it. Every row links to its verbatim receipt, and the canary column doubles as a public map of which driver stacks corrupt the shipped subgroup reduce.</p>
-    <div class="rtable-wrap"><table class="rtable" id="lbtable">
-      <thead><tr><th>device</th><th>stack</th><th>read GB/s</th><th>best gemv</th><th>e2b tok/s</th><th>canary</th><th>date</th><th>receipt</th></tr></thead>
-      <tbody></tbody>
-    </table></div>
-    <div style="margin-top:12px;"><button class="ghost" id="lbsubmit">submit your run (opens a GitHub issue)</button></div>
+    <h3>The community map: every run is a dot, hardware only</h3>
+    <p class="lb-note">Opt-in by design: the button copies your receipt and opens a public GitHub issue (hardware, browser build, measurements; no accounts, no names). A validation action checks structure and adds the run. The board is a map, not a history feed: right means a faster memory pipe, high means kernels keep more of it, and red dots mark driver stacks where the shipped engine reduce corrupts. Your own receipt stays yours from the card above; the repo keeps raw hardware receipts only as the pipeline's audit trail.</p>
+    <div class="lb-viz"><canvas id="lbcv"></canvas></div>
+    <div class="lb-legend num">
+      <span><span class="lbsw lbsw-ok"></span>canary passes</span>
+      <span><span class="lbsw lbsw-bad"></span>canary fails: this stack corrupts the engine reduce</span>
+      <span><span class="lbsw lbsw-na"></span>canary unavailable</span>
+    </div>
+    <div class="lb-aggs num" id="lbaggs"></div>
+    <div style="margin-top:14px;"><button class="ghost" id="lbsubmit">put your dot on the map (opens a GitHub issue)</button></div>
   </section>
 
   <div id="err">
@@ -745,97 +771,57 @@ function relErr(ref, got) {
   return Math.abs(ref - got) / denom;
 }
 function fmtGB(x) { return x >= 100 ? x.toFixed(0) : x.toFixed(1); }
-function status(msg) { $('statusline').textContent = msg; animPhase(msg); }
+function status(msg) {
+  $('statusline').textContent = msg;
+  if (scene.mode === 'live') $('dr-sub').textContent = msg;
+}
 
-/* ---------- run-time explainer: an instrument diagram of decode ----------
-   Drawn on a 2D canvas at ~15 fps from the run's real byte counter. It
-   freezes (and says so) while a timed block is in flight, so the decoration
-   never competes with the measurement. */
-const anim = { bytes: 0, hold: false, phase: 'boot', running: false, raf: 0, last: 0, t: 0, cap: '' };
-const ANIM_CAPS = {
-  boot: 'setting up: deterministic weights on the GPU, an FP64 referee on the CPU',
-  pipe: 'measuring the pipe: how many bytes per second move between VRAM and the GPU cores',
-  token: 'this is one token of an LLM: every active weight streams through the GPU, once per token. tok/s ceiling = pipe speed / bytes per token',
-  canary: "checking your driver's math: the reduce shape real engines shipped, 20 trials against the FP64 referee",
-  manifest: "reading the model's tensor map: which bytes each token actually touches",
-  done: 'run complete'
-};
-function animPhase(msg) {
-  const m = msg.toLowerCase();
-  if (m.startsWith('done') || m.startsWith('stopped')) { animStop(m.startsWith('done')); return; }
-  if (m.includes('canary')) anim.phase = 'canary';
-  else if (m.includes('manifest')) anim.phase = 'manifest';
-  else if (m.includes('gemv')) anim.phase = 'token';
-  else if (m.includes('copy bandwidth') || m.includes('triad') || m.includes('read ceiling')) anim.phase = 'pipe';
-  else if (m.includes('adapter') || m.includes('allocating') || m.includes('filling') || m.includes('references')) anim.phase = 'boot';
+/* ---------- the dial is the run display ----------
+   During a run the hero scene stays on screen and becomes the instrument:
+   the needle glides to each probe as it lands (normalized against the best
+   GB/s seen, i.e. the emerging ceiling), the readout under the arc carries
+   the latest number and the live phase line, and the final state parks the
+   needle at your kernel efficiency with the tok/s ceiling as the headline.
+   While a timed block is in flight the whole scene freezes (anim.hold), so
+   the decoration never bids for bandwidth against the measurement. */
+const anim = { bytes: 0, hold: false };
+function sceneRun() {
+  document.body.classList.add('running');
+  $('dialreadout').hidden = false;
+  $('dr-num').textContent = ''; $('dr-unit').textContent = '';
+  $('dr-sub').textContent = 'preparing: deterministic weights, FP64 referee on the CPU';
+  $('dr-bytes').textContent = ''; $('dr-canary').hidden = true;
+  anim.bytes = 0; anim.hold = false;
+  scene.mode = 'live'; scene.tv = 0; scene.sweeping = false; scene.idle = 0;
+  if (SCENE_STILL) { scene.v = 0; drawScene(0); }
 }
-const ANIM_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
-function animFrame(now) {
-  if (!anim.running) return;
-  anim.raf = requestAnimationFrame(animFrame);
-  if (now - anim.last < 66) return;
-  const dt = Math.min(0.2, (now - anim.last) / 1000);
-  anim.last = now;
-  if (!anim.hold && !ANIM_STILL) anim.t += dt * (anim.phase === 'boot' ? 0.25 : anim.phase === 'canary' ? 0.5 : 1);
-  animDraw();
-  const cap = ANIM_CAPS[anim.phase] + (anim.hold ? ' · holding still: timed block in flight' : '');
-  if (cap !== anim.cap) { anim.cap = cap; $('animcap').textContent = cap; }
+function sceneMeasure(gbps, label) {
+  if (scene.mode !== 'live') return;
+  const max = Math.max(...Object.values(measSeen), gbps);
+  scene.tv = Math.max(0.02, Math.min(1.02, gbps / max));
+  $('dr-num').textContent = fmtGB(gbps);
+  $('dr-unit').textContent = ' GB/s · ' + label;
+  if (SCENE_STILL) { scene.v = scene.tv; drawScene(0); }
 }
-function animDraw() {
-  const cv = $('animcv');
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const W = cv.clientWidth, H = 128;
-  if (!W) return;
-  if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
-  const g = cv.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const cs = getComputedStyle(document.documentElement);
-  const ink = cs.getPropertyValue('--ink').trim(), muted = cs.getPropertyValue('--muted').trim(),
-        accent = cs.getPropertyValue('--accent').trim(), edge = cs.getPropertyValue('--edge').trim();
-  g.clearRect(0, 0, W, H);
-  const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-  const pad = 16, bw = Math.min(120, W * 0.22), bh = 56, by = 18;
-  g.strokeStyle = edge; g.lineWidth = 1;
-  g.strokeRect(pad + 0.5, by + 0.5, bw, bh);
-  g.strokeRect(W - pad - bw + 0.5, by + 0.5, bw, bh);
-  g.fillStyle = ink; g.font = mono(12, 700);
-  g.fillText('WEIGHTS', pad + 12, by + 24);
-  g.fillText('GPU', W - pad - bw + 12, by + 24);
-  g.fillStyle = muted; g.font = mono(10);
-  g.fillText('VRAM', pad + 12, by + 40);
-  g.fillText('COMPUTE', W - pad - bw + 12, by + 40);
-  const x0 = pad + bw, x1 = W - pad - bw, y = by + bh / 2;
-  g.strokeStyle = edge;
-  g.beginPath(); g.moveTo(x0, y - 9); g.lineTo(x1, y - 9); g.stroke();
-  g.beginPath(); g.moveTo(x0, y + 9); g.lineTo(x1, y + 9); g.stroke();
-  const span = x1 - x0, n = 7;
-  g.fillStyle = accent;
-  g.shadowColor = accent; g.shadowBlur = 9;
-  for (let i = 0; i < n; i++) {
-    const f = ((anim.t * 0.9 + i / n) % 1);
-    g.fillRect(x0 + f * (span - 16), y - 5, 14, 10);
-  }
-  g.shadowBlur = 0;
-  g.fillStyle = ink; g.font = mono(17, 700);
-  const gb = anim.bytes / 1e9;
-  g.fillText('≈' + (gb >= 100 ? gb.toFixed(0) : gb.toFixed(1)) + ' GB streamed', pad, H - 18);
-  g.fillStyle = muted; g.font = mono(10);
-  const tag = 'MEASURED LIVE';
-  g.fillText(tag, W - pad - g.measureText(tag).width, H - 18);
+function sceneCanaryBadge(state) {
+  const b = $('dr-canary');
+  if (state === 'FAIL') { b.textContent = 'CANARY FAIL'; b.className = 'dr-badge'; b.hidden = false; }
+  else if (state === 'PASS') { b.textContent = 'CANARY PASS'; b.className = 'dr-badge okb'; b.hidden = false; }
+  else b.hidden = true;
 }
-function animStart() {
-  anim.bytes = 0; anim.t = 0; anim.phase = 'boot'; anim.cap = ''; anim.hold = false;
-  anim.running = true; anim.last = performance.now();
-  $('animwrap').style.display = 'block';
-  anim.raf = requestAnimationFrame(animFrame);
-}
-function animStop(finished) {
-  if (!anim.running) return;
-  anim.running = false;
-  cancelAnimationFrame(anim.raf);
-  anim.hold = false;
-  animDraw();
-  if (finished) $('animcap').textContent = 'run complete: ≈' + (anim.bytes / 1e9).toFixed(1) + ' GB streamed through your GPU for this measurement';
+function sceneDone() {
+  const s = state.score; if (!s) return;
+  scene.mode = 'done';
+  scene.tv = Math.max(0.05, Math.min(1.02, s.efficiency));
+  const p = s.projections.find(m => m.derived) || s.projections[0];
+  $('dr-num').textContent = p.derived ? '≈' + Math.round(p.tokLo) : Math.round(p.tokLo) + '-' + Math.round(p.tokHi);
+  $('dr-unit').textContent = ' tok/s ceiling · ' + p.name.toLowerCase();
+  const eff = Math.round(s.efficiency * 100);
+  $('dr-sub').textContent = fmtGB(s.readGBps) + ' GB/s read ceiling · '
+    + (eff >= 98 ? 'your kernels can saturate it' : 'best kernel keeps ' + eff + '% of it');
+  $('dr-bytes').textContent = '≈' + (anim.bytes / 1e9).toFixed(0) + ' GB streamed through your GPU for this measurement';
+  sceneCanaryBadge(s.canary === 'FAIL' ? 'FAIL' : s.canary === 'PASS' ? 'PASS' : 'NA');
+  if (SCENE_STILL) { scene.v = scene.tv; drawScene(0); }
 }
 
 /* Gate rows carry a glow dot (pulsing while live, green/red when settled);
@@ -850,7 +836,7 @@ const measSeen = {};
    a viewport-length blade that sweeps to the redline on load. Scale is % of
    YOUR ceiling; the 30-50% band is the receipted cross-device finding. All
    randomness is hash-derived (same culture as the probes). */
-const scene = { v: 0, t0: 0, raf: 0, idle: 0, last: 0, ox: 0, oy: 0, tx: 0, ty: 0, parts: null, sweeping: true };
+const scene = { v: 0, tv: 0, mode: 'ambient', t0: 0, raf: 0, idle: 0, last: 0, ox: 0, oy: 0, tx: 0, ty: 0, parts: null, sweeping: true };
 const SCENE_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SCENE_K = 1.22;                    // scale runs 0..122%; redline sits at 100
 function sceneParts(n) {
@@ -870,7 +856,7 @@ function drawScene(dt) {
   if (!cv || !cv.clientWidth) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const W = cv.clientWidth, H = cv.clientHeight;
-  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
@@ -928,7 +914,7 @@ function drawScene(dt) {
   if (!scene.parts) scene.parts = sceneParts(narrow ? 16 : 34);
   g.fillStyle = accent; g.shadowColor = accent; g.shadowBlur = 7;
   for (const p of scene.parts) {
-    if (!SCENE_STILL && !scene.holdParts) {
+    if (!SCENE_STILL) {
       p.s += p.sp * dt;
       if (p.s > Math.min(v, 1.0)) p.s = 0;
     }
@@ -955,17 +941,31 @@ function sceneStep(now) {
   if (now - scene.last < 33) return;
   const dt = Math.min(0.1, (now - scene.last) / 1000);
   scene.last = now;
-  if ($('hero').style.display === 'none') return;
-  if (!scene.t0) scene.t0 = now;
-  const t = (now - scene.t0) / 1700;
-  if (t < 1) {
-    const e = 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
-    scene.v = Math.max(0, e);
-    scene.sweeping = true;
+  // a timed block is in flight: freeze the whole scene so canvas raster
+  // never competes with the measurement for GPU bandwidth
+  if (anim.hold) return;
+  if (scene.mode === 'ambient') {
+    if (!scene.t0) scene.t0 = now;
+    const t = (now - scene.t0) / 1700;
+    if (t < 1) {
+      const e = 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+      scene.v = Math.max(0, e);
+      scene.sweeping = true;
+    } else {
+      scene.sweeping = false;
+      scene.idle += dt;
+      scene.v = 1 + Math.sin(scene.idle * 1.6) * 0.0035;
+    }
   } else {
-    scene.sweeping = false;
-    scene.idle += dt;
-    scene.v = 1 + Math.sin(scene.idle * 1.6) * 0.0035;
+    const d = scene.tv - scene.v;
+    scene.v += d * Math.min(1, dt * 3.2);
+    scene.sweeping = Math.abs(d) > 0.06;
+    if (scene.mode === 'done' && Math.abs(d) < 0.01) {
+      scene.idle += dt;
+      scene.v = scene.tv + Math.sin(scene.idle * 1.6) * 0.003;
+    }
+    if (scene.mode === 'live' && anim.bytes > 5e8)
+      $('dr-bytes').textContent = '≈' + (anim.bytes / 1e9).toFixed(1) + ' GB streamed through your GPU so far';
   }
   scene.ox += (scene.tx - scene.ox) * 0.05;
   scene.oy += (scene.ty - scene.oy) * 0.05;
@@ -1034,8 +1034,13 @@ function setProbe(id, gbps, html, cls) {
   const bar = $('bar-' + id);
   if (bar) {
     if (cls === 'bad') bar.classList.add('bad');
-    if (typeof gbps === 'number' && isFinite(gbps) && gbps > 0) { measSeen[id] = gbps; renormBars(); }
+    if (typeof gbps === 'number' && isFinite(gbps) && gbps > 0) {
+      measSeen[id] = gbps; renormBars();
+      const nm = row && row.querySelector('.pname');
+      sceneMeasure(gbps, nm ? nm.childNodes[0].textContent.replace('★', '').trim() : id);
+    }
   }
+  if (id === 'can') sceneCanaryBadge(cls === 'bad' ? 'FAIL' : html.indexOf('PASS') >= 0 ? 'PASS' : 'NA');
   const val = $('val-' + id);
   val.innerHTML = html;
   val.classList.add('landed');
@@ -1148,9 +1153,8 @@ function receipt(name, fields) { state.receipts.push({ probe: name, ...fields })
 
 /* ---------- the suite ---------- */
 async function runSuite() {
-  $('hero').style.display = 'none';
+  sceneRun();
   $('runsheet').style.display = 'block';
-  animStart();
   $('err').style.display = 'none';
   $('probes').innerHTML = '';
   for (const k in measSeen) delete measSeen[k];
@@ -1580,6 +1584,7 @@ async function runSuite() {
   };
   renderResult();
   updateRank();
+  sceneDone();
   [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no — full re-run realloc; free the big ones
 }
 
@@ -1719,6 +1724,11 @@ function showError(kind, msg) {
   $('err').style.display = 'block';
   $('errkind').textContent = kind;
   $('errmsg').textContent = msg;
+  // hand the hero back to poster mode so the page still explains itself
+  document.body.classList.remove('running');
+  $('dialreadout').hidden = true;
+  anim.hold = false;
+  scene.mode = 'ambient'; scene.t0 = 0; scene.idle = 0;
   status('stopped.');
 }
 $('runbtn').addEventListener('click', () => {
@@ -1824,39 +1834,120 @@ async function loadLeaderboard() {
     const j = await r.json();
     if (!j.rows || !j.rows.length) return;
     lbRows = j.rows;
-    const tb = document.querySelector('#lbtable tbody');
-    tb.textContent = '';
-    for (const row of j.rows) {
-      const tr = document.createElement('tr');
-      const cells = [
-        [row.vendor, row.arch, row.device].filter(Boolean).join(' · ') || 'unknown',
-        [row.os, row.browser].filter(Boolean).join(' · '),
-        String(row.readGBps),
-        row.bestPct != null ? (row.bestPct >= 98 ? 'saturates' : row.bestPct + '%') : '—',
-        row.e2bLo == null ? '—' : (row.derived ? '≈' + row.e2bLo : row.e2bLo + '-' + row.e2bHi),
-        null, // canary, styled below
-        row.ts || '',
-      ];
-      for (const c of cells) {
-        const td = document.createElement('td');
-        if (c === null) {
-          const [txt, cls] = lbCanary(row);
-          const span = document.createElement('span');
-          span.className = cls; span.textContent = txt;
-          td.appendChild(span);
-        } else td.textContent = c;
-        tr.appendChild(td);
-      }
-      const td = document.createElement('td');
-      const a = document.createElement('a');
-      a.href = row.receipt; a.textContent = 'json'; a.rel = 'noopener'; a.target = '_blank';
-      td.appendChild(a);
-      tr.appendChild(td);
-      tb.appendChild(tr);
-    }
     $('leaderboard').hidden = false;
+    drawBoard();
+    renderAggs();
   } catch (e) { /* board is optional; the instrument works without it */ }
 }
+function drawBoard() {
+  const cv = $('lbcv');
+  if (!cv || !lbRows.length || !cv.clientWidth) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const cs = getComputedStyle(document.documentElement);
+  const V = n => cs.getPropertyValue(n).trim();
+  const ink = V('--ink'), muted = V('--muted'), accent = V('--accent'), gridc = V('--grid'), fail = V('--fail');
+  const mixc = (c, p) => 'color-mix(in srgb, ' + c + ' ' + p + '%, transparent)';
+  const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  const padL = 44, padR = 16, padT = 30, padB = 40;
+  const xmin = 8, xmax = 1500, ymin = 50, ymax = 110;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const X = v => padL + (Math.log10(v) - Math.log10(xmin)) / (Math.log10(xmax) - Math.log10(xmin)) * (W - padL - padR);
+  const Y = v => padT + (ymax - v) / (ymax - ymin) * (H - padT - padB);
+  // grid: log-x in GB/s, linear-y in % of own ceiling
+  g.font = mono(10);
+  for (const gx of [10, 30, 100, 300, 1000]) {
+    g.strokeStyle = gridc; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(X(gx), padT); g.lineTo(X(gx), H - padB); g.stroke();
+    g.fillStyle = mixc(muted, 75);
+    const lbl = String(gx);
+    g.fillText(lbl, X(gx) - g.measureText(lbl).width / 2, H - padB + 16);
+  }
+  for (const gy of [60, 80, 100]) {
+    const ceil = gy === 100;
+    g.strokeStyle = ceil ? mixc(accent, 45) : gridc; g.lineWidth = ceil ? 1.5 : 1;
+    g.beginPath(); g.moveTo(padL, Y(gy)); g.lineTo(W - padR, Y(gy)); g.stroke();
+    g.fillStyle = ceil ? accent : mixc(muted, 75);
+    g.fillText(gy + '%', 8, Y(gy) + 3);
+  }
+  g.fillStyle = mixc(muted, 80);
+  const xc = 'read bandwidth, GB/s (log)';
+  g.fillText(xc, W - padR - g.measureText(xc).width, H - 8);
+  g.fillText('kernels keep, % of own ceiling', padL, 14);
+  // dots with dodged labels
+  const placed = [];
+  const rows = [...lbRows].sort((a, b) => a.readGBps - b.readGBps);
+  for (const r of rows) {
+    const x = X(clamp(r.readGBps, xmin, xmax));
+    const y = Y(clamp(r.bestPct == null ? 60 : r.bestPct, ymin, ymax));
+    const [cst] = lbCanary(r);
+    if (cst === 'FAIL') {
+      g.fillStyle = fail; g.shadowColor = fail; g.shadowBlur = 10;
+      g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.fill(); g.shadowBlur = 0;
+    } else if (cst === 'PASS') {
+      g.fillStyle = mixc(ink, 88);
+      g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.fill();
+    } else {
+      g.strokeStyle = mixc(muted, 85); g.lineWidth = 1.6;
+      g.beginPath(); g.arc(x, y, 5, 0, 7); g.stroke();
+    }
+    const lbl = ((r.arch || r.vendor || '?') + ' · ' + (r.os || '?')).toLowerCase();
+    g.font = mono(10.5);
+    const w = g.measureText(lbl).width;
+    let lx = x + 11, ly = y + 3.5;
+    if (lx + w > W - padR) lx = x - 11 - w;
+    for (const dy of [0, 13, -13, 26, -26, 39]) {
+      const box = { x: lx, y: ly + dy - 9, w: w, h: 13 };
+      if (!placed.some(p => box.x < p.x + p.w && p.x < box.x + box.w && box.y < p.y + p.h && p.y < box.y + box.h)) {
+        placed.push(box); ly += dy; break;
+      }
+    }
+    g.fillStyle = mixc(muted, 90);
+    g.fillText(lbl, lx, ly);
+  }
+}
+function renderAggs() {
+  const wrap = $('lbaggs');
+  wrap.textContent = '';
+  const med = a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  const block = (title, key) => {
+    const h = document.createElement('div');
+    h.className = 'aggh'; h.textContent = title;
+    wrap.appendChild(h);
+    const groups = {};
+    for (const r of lbRows) {
+      const k = String(r[key] || 'unknown').toLowerCase();
+      (groups[k] = groups[k] || []).push(r);
+    }
+    for (const [k, rs] of Object.entries(groups).sort((a, b) => med(b[1].map(r => r.readGBps)) - med(a[1].map(r => r.readGBps)))) {
+      const div = document.createElement('div');
+      div.className = 'agg';
+      const b = document.createElement('b'); b.textContent = k; div.appendChild(b);
+      const fails = rs.filter(r => lbCanary(r)[0] === 'FAIL').length;
+      const cells = [
+        rs.length + (rs.length === 1 ? ' run' : ' runs'),
+        'median read ' + fmtGB(med(rs.map(r => r.readGBps))) + ' GB/s',
+        (p => p >= 98 ? 'kernels saturate the pipe' : 'kernels keep ' + p + '%')(Math.round(med(rs.map(r => r.bestPct == null ? 0 : r.bestPct)))),
+      ];
+      for (const c of cells) {
+        const s = document.createElement('span'); s.textContent = c; div.appendChild(s);
+      }
+      const s = document.createElement('span');
+      if (fails) { s.className = 'hot'; s.textContent = fails + (fails === 1 ? ' canary fail' : ' canary fails'); }
+      else s.textContent = 'no canary fails';
+      div.appendChild(s);
+      wrap.appendChild(div);
+    }
+  };
+  block('BY OS', 'os');
+  block('BY VENDOR', 'vendor');
+}
+addEventListener('resize', drawBoard);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(drawBoard, 50));
 loadLeaderboard();
 $('lbsubmit').addEventListener('click', async () => {
   if (state.score) {
