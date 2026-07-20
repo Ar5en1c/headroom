@@ -963,8 +963,13 @@ function sceneStep(now) {
   const dt = Math.min(0.1, (now - scene.last) / 1000);
   scene.last = now;
   // a timed block is in flight: freeze the whole scene so canvas raster
-  // never competes with the measurement for GPU bandwidth
-  if (anim.hold) return;
+  // never competes with the measurement for GPU bandwidth; paint one clean
+  // ghost-free frame first so the hold reads as a held needle, not a smear
+  if (anim.hold) {
+    if (!scene.heldDrawn) { scene.heldDrawn = true; scene.sweeping = false; drawScene(0); }
+    return;
+  }
+  scene.heldDrawn = false;
   if (scene.mode === 'ambient') {
     if (!scene.t0) scene.t0 = now;
     const t = (now - scene.t0) / 1700;
