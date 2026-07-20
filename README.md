@@ -49,6 +49,19 @@ Same methodology as
 [gemma4-webgpu-nvidia-subgroup-fix](https://github.com/Ar5en1c/gemma4-webgpu-nvidia-subgroup-fix)
 and the CUDA companion study (decode at the memory ceiling on RTX 5070).
 
+## Community leaderboard
+
+The page shows community ceilings: hardware-only rows built from submitted
+receipts. Submission is opt-in and public by design: the button on the page
+copies your receipt JSON and opens a GitHub issue with it, a validation
+action ([leaderboard/ingest.py](leaderboard/ingest.py)) checks structure and
+plausibility, stores the receipt under [community/](community/), rebuilds
+[leaderboard.json](leaderboard.json), and closes the issue. No accounts on
+the board, no server anywhere. Every row links to its verbatim receipt, and
+the canary column doubles as a public map of which driver stacks corrupt the
+shipped subgroup reduce. The action validates structure, not silicon: the
+audit trail (receipt + public submission issue per row) is the trust model.
+
 ## Run it
 
 Any static server:

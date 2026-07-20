@@ -143,7 +143,13 @@
 
   /* receipts table */
   #receipts { margin-top: 34px; }
-  #receipts h3 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+  #receipts h3, #leaderboard h3 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+  #leaderboard { margin-top: 52px; }
+  #leaderboard .lb-note { font-size: 13.5px; color: var(--muted); max-width: 72ch; margin: 10px 0 14px; }
+  #leaderboard td a { color: var(--muted); }
+  .lb-pass { color: var(--pass); font-weight: 600; }
+  .lb-fail { color: var(--fail); font-weight: 600; }
+  .lb-na { color: var(--na); font-weight: 600; }
   .rtable-wrap { overflow-x: auto; border: 1px solid var(--edge); background: var(--panel); }
   table.rtable { width: 100%; border-collapse: collapse; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; min-width: 640px; }
   table.rtable th { text-align: left; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--edge); background: var(--bg); }
@@ -237,6 +243,16 @@
         <tbody></tbody>
       </table></div>
     </div>
+  </section>
+
+  <section id="leaderboard" hidden>
+    <h3>Community ceilings: hardware only, receipts attached</h3>
+    <p class="lb-note">Opt-in by design: the button copies your receipt and opens a public GitHub issue with it (hardware, browser version string, and measurements; no account data appears on the board). A validation action checks structure and merges it. Every row links to its verbatim receipt, and the canary column doubles as a public map of which driver stacks corrupt the shipped subgroup reduce.</p>
+    <div class="rtable-wrap"><table class="rtable" id="lbtable">
+      <thead><tr><th>device</th><th>stack</th><th>read GB/s</th><th>best gemv</th><th>e2b tok/s</th><th>canary</th><th>date</th><th>receipt</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div style="margin-top:12px;"><button class="ghost" id="lbsubmit">submit your run (opens a GitHub issue)</button></div>
   </section>
 
   <div id="err">
@@ -1425,6 +1441,66 @@ $('copybtn').addEventListener('click', async () => {
   await navigator.clipboard.writeText(receiptJSON());
   $('copybtn').textContent = 'copied ✓';
   setTimeout(() => { $('copybtn').textContent = 'copy JSON receipt'; }, 1500);
+});
+
+/* ---------- community leaderboard (opt-in, hardware rows only) ---------- */
+const LB_ISSUE_URL = 'https://github.com/Ar5en1c/headroom/issues/new?template=leaderboard.yml';
+function lbCanary(row) {
+  if (row.canaryV2 === 'REPRODUCED' || row.canary === 'FAIL') return ['FAIL', 'lb-fail'];
+  if (row.canaryV2 === 'PASS' || row.canary === 'PASS') return ['PASS', 'lb-pass'];
+  if (row.canary === 'BLOCKED') return ['BLOCKED', 'lb-na'];
+  return [row.canary || '—', 'lb-na'];
+}
+async function loadLeaderboard() {
+  try {
+    const r = await fetch('leaderboard.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j.rows || !j.rows.length) return;
+    const tb = document.querySelector('#lbtable tbody');
+    tb.textContent = '';
+    for (const row of j.rows) {
+      const tr = document.createElement('tr');
+      const cells = [
+        [row.vendor, row.arch, row.device].filter(Boolean).join(' · ') || 'unknown',
+        [row.os, row.browser].filter(Boolean).join(' · '),
+        String(row.readGBps),
+        row.bestPct != null ? (row.bestPct >= 98 ? 'saturates' : row.bestPct + '%') : '—',
+        row.e2bLo == null ? '—' : (row.derived ? '≈' + row.e2bLo : row.e2bLo + '-' + row.e2bHi),
+        null, // canary, styled below
+        row.ts || '',
+      ];
+      for (const c of cells) {
+        const td = document.createElement('td');
+        if (c === null) {
+          const [txt, cls] = lbCanary(row);
+          const span = document.createElement('span');
+          span.className = cls; span.textContent = txt;
+          td.appendChild(span);
+        } else td.textContent = c;
+        tr.appendChild(td);
+      }
+      const td = document.createElement('td');
+      const a = document.createElement('a');
+      a.href = row.receipt; a.textContent = 'json'; a.rel = 'noopener'; a.target = '_blank';
+      td.appendChild(a);
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    }
+    $('leaderboard').hidden = false;
+  } catch (e) { /* board is optional; the instrument works without it */ }
+}
+loadLeaderboard();
+$('lbsubmit').addEventListener('click', async () => {
+  if (state.score) {
+    try {
+      await navigator.clipboard.writeText(receiptJSON());
+      $('lbsubmit').textContent = 'receipt copied. paste it into the issue form';
+    } catch (e) { /* clipboard may be blocked; the issue form explains the paste */ }
+  } else {
+    $('lbsubmit').textContent = 'opens GitHub — run the test first to copy a receipt';
+  }
+  window.open(LB_ISSUE_URL, '_blank', 'noopener');
 });
 </script>
 </body>

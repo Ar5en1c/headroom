@@ -1,0 +1,19 @@
+name: Leaderboard submission
+description: Submit a Headroom receipt. The board shows hardware and measurements only.
+title: "[leaderboard] your device here"
+labels: [leaderboard]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paste the full JSON from the page's "copy JSON receipt" (or the downloaded file).
+        It contains your hardware info, browser version string, and measurements. No account
+        data appears on the board; this issue stays public as the row's audit trail.
+  - type: textarea
+    id: receipt
+    attributes:
+      label: Receipt JSON
+      render: json
+      placeholder: '{ "tool": "headroom", "collector": "webgpu-page", ... }'
+    validations:
+      required: true
