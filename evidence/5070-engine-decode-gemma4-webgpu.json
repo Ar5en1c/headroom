@@ -1,0 +1,39 @@
+{
+ "schema": "gemma4-sg-fix/1",
+ "guard": {
+  "mode": "patched-sg",
+  "selfTest": {
+   "bare": "FAIL(1.80e+0)",
+   "butterfly": "PASS"
+  },
+  "adapter": {
+   "vendor": "nvidia",
+   "architecture": "blackwell",
+   "subgroupMinSize": 32,
+   "subgroupMaxSize": 128
+  },
+  "error": null
+ },
+ "loadSeconds": 2.8,
+ "patchedAfterLoad": 0,
+ "subgroupsActive": true,
+ "identity": {
+  "corrupt": false,
+  "head": "## Photosynthesis Explained\n\nPhotosynthesis is the fundamental biochemical process by which plants, algae, and some bacteria convert light e"
+ },
+ "stress": {
+  "corrupt": false,
+  "tail": "res a peaceful, yet active, moment in the natural setting.\n\n**Distinct Nouns:**\n\n1. Fox\n2. Dog\n3. River\n4. Mill\n5. Light"
+ },
+ "run1": {
+  "ttftSec": 0.64,
+  "decodeTokPerSec": 217.2
+ },
+ "run2": {
+  "ttftSec": 0.65,
+  "decodeTokPerSec": 212.9
+ },
+ "modulesPatched": 17,
+ "verdict": "COHERENT",
+ "done": true
+}

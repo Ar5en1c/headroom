@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HEADROOM — how fast is your machine, really?</title>
-<meta name="description" content="A 30-second WebGPU test that measures your device's real memory-bandwidth ceiling for local AI, checks your driver for the subgroup bug, and ranks your machine on the community board. No model download, no account, no telemetry.">
+<title>HEADROOM: how fast is your machine, really?</title>
+<meta name="description" content="A 30-second WebGPU test that measures your device's real memory-bandwidth ceiling for local AI and runs a canary for the subgroup miscompile verified live on NVIDIA/Windows Chrome 150 (July 2026). No model download, no account, no telemetry.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23101319'/%3E%3Ctext x='10' y='46' font-family='monospace' font-size='40' font-weight='700' fill='%23E8EAF0'%3EH%3C/text%3E%3Crect x='40' y='38' width='16' height='8' fill='%23FF5A3C'/%3E%3C/svg%3E">
-<meta property="og:title" content="HEADROOM — how fast is your machine, really?">
-<meta property="og:description" content="30-second WebGPU test: your device's real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary that catches the silent GPU corruption still live in current Chrome.">
+<meta property="og:title" content="HEADROOM: how fast is your machine, really?">
+<meta property="og:description" content="30-second WebGPU test: your device's real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary for the subgroup miscompile verified on NVIDIA/Windows Chrome 150, July 2026.">
 <meta property="og:image" content="https://ar5en1c.github.io/headroom/og-image.png">
 <meta property="og:url" content="https://ar5en1c.github.io/headroom/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="HEADROOM — how fast is your machine, really?">
-<meta name="twitter:description" content="30-second WebGPU test: your real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary for the silent GPU bug in current Chrome.">
+<meta name="twitter:title" content="HEADROOM: how fast is your machine, really?">
+<meta name="twitter:description" content="30-second WebGPU test: your real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary for the subgroup miscompile verified on NVIDIA/Windows Chrome 150, July 2026.">
 <meta name="twitter:image" content="https://ar5en1c.github.io/headroom/og-image.png">
 <style>
   :root {
@@ -227,7 +227,7 @@
   table.rtable tr:last-child td { border-bottom: none; }
   .ok { color: var(--pass); font-weight: 700; } .bad { color: var(--fail); font-weight: 700; } .nap { color: var(--na); }
 
-  #err { display: none; margin-top: 30px; border: 1px solid var(--fail); background: var(--panel); padding: 18px 20px; }
+  #err { display: none; margin-top: 18px; border: 1px solid var(--fail); background: var(--panel); padding: 18px 20px; }
   #err h3 { margin: 0 0 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; color: var(--fail); }
   #err p { margin: 0 0 8px; font-size: 14.5px; max-width: 70ch; }
 
@@ -261,13 +261,17 @@
       <h1>How fast is your machine, <span class="dim">really?</span></h1>
       <div class="hero-copy">
         <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI: the number that decides your tokens/s. It also checks your driver for the <b>subgroup bug</b> that makes some in-browser LLMs produce garbage.</p>
-        <p class="fine">No model download, no account, no telemetry. Synthetic weights, FP64-checked; your numbers stay in this browser unless you post them.</p>
+        <p class="fine">No model download, no account, no telemetry. Synthetic weights, FP64-checked. One outbound request: ~0.4 MB of public model metadata to derive bytes per token, no run data attached. Your numbers stay in this browser unless you post them.</p>
         <div class="cta-row">
           <button class="run" id="runbtn">RUN THE TEST →</button>
           <button class="ghost" id="methbtn">methodology</button>
         </div>
+        <div id="err">
+          <h3>CAN'T RUN: <span id="errkind">NO WEBGPU</span></h3>
+          <p id="errmsg"></p>
+        </div>
         <div class="scene-legend">
-          <span class="sl-swatch sl-band"></span>band: engines today
+          <span class="sl-swatch sl-band"></span>band: the engine we measured
           <span class="sl-swatch sl-line"></span>redline: your 100%
         </div>
       </div>
@@ -290,7 +294,7 @@
         <div class="bigcap" id="c-bigcap">gemma 4 e2b class · 2.46 GB resident</div>
         <div class="meter">
           <div class="mbar"><div class="mfill" id="c-fill"></div><div class="mtick" id="c-tick" style="left:0%"></div></div>
-          <div class="mscale"><span>0</span><span id="c-eff">kernel efficiency —</span><span id="c-ceil">read ceiling —</span></div>
+          <div class="mscale"><span>0</span><span id="c-eff">kernel efficiency —</span><span id="c-ceil">ceiling —</span></div>
         </div>
         <table class="proj">
           <tr><td id="l-e2b">gemma 4 e2b qat · 2.46 GB (ple, ~1.05 GB/token est)</td><td class="v" id="p-e2b">—</td></tr>
@@ -304,6 +308,7 @@
         <button class="ghost" id="jsonbtn">download JSON receipt</button>
         <button class="ghost" id="copybtn">copy JSON receipt</button>
         <button class="ghost" id="forumbtn">copy result (forum text)</button>
+        <button class="ghost" id="xbtn">post to X</button>
         <button class="ghost" id="againbtn">run again</button>
         <button class="ghost" id="importbtn">import receipt (json)</button>
         <input type="file" id="importfile" accept="application/json,.json" multiple hidden>
@@ -313,17 +318,17 @@
     <div id="meaning">
       <h3>What your ceiling means</h3>
       <div id="meanrows"></div>
-      <p class="note" id="meanref">Reference points, measured by this page and receipted: an RTX 5070 reads 589 GB/s (88% of its 672 spec) for a ceiling of ≈731 tok/s on gemma 4 e2b, and the shipped engine decodes 217 (30%). An Apple M1 reads 51-56 GB/s for a ceiling of ≈63-69; the same engine does 30-40 (~50%). The gap is launch overhead, not bandwidth: that is the headroom. <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence" target="_blank" rel="noopener">receipts</a> · <a href="#" id="meanmeth">methodology</a></p>
+      <p class="note" id="meanref">Reference points, measured by this page and receipted: an RTX 5070 reads 577-589 GB/s across three sessions (86-88% of its 672 spec) for a gemma 4 e2b ceiling of 717-731 tok/s, and the one in-browser engine we measured decodes 217 (30% of ceiling). An Apple M1 reads 51-56 GB/s for a ceiling of 63-69; the same engine does 30-40, while native Ollama on that M1 runs its model at 72-79% of ceiling. The gap is engine overhead, not bandwidth: that is the headroom. <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence" target="_blank" rel="noopener">receipts</a> · <a href="#" id="meanmeth">methodology</a></p>
     </div>
     <div id="imports" hidden>
-      <h3 style="font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--edge);padding-bottom:6px;margin-top:34px;">Imported receipts — other collectors vs this device's ceiling</h3>
+      <h3 style="font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--edge);padding-bottom:6px;margin-top:34px;">Imported receipts: other collectors vs this device's ceiling</h3>
       <div class="rtable-wrap"><table class="rtable" id="itable">
         <thead><tr><th>collector</th><th>what ran</th><th>headline</th><th>vs this run</th></tr></thead>
         <tbody></tbody>
       </table></div>
     </div>
     <div id="receipts">
-      <h3>Receipts — every number, its method</h3>
+      <h3>Receipts: every number, its method</h3>
       <div class="rtable-wrap"><table class="rtable" id="rtable">
         <thead><tr><th>probe</th><th>result</th><th>bytes/pass</th><th>iters × reps</th><th>gate</th></tr></thead>
         <tbody></tbody>
@@ -339,37 +344,32 @@
 
   <section id="leaderboard" hidden>
     <h3>The community map: every run is a dot, hardware only</h3>
-    <p class="lb-note">Opt-in: the button copies your receipt and opens a public GitHub issue (hardware only, no accounts). Right means a faster memory pipe, high means kernels keep more of it, red means that driver stack corrupts the shipped engine reduce. Your receipt stays yours; the repo keeps the raw JSON audit trail.</p>
+    <p class="lb-note">Opt-in: the button copies your receipt and opens a public GitHub issue (hardware only, no accounts). Right means a faster memory pipe, high means kernels keep more of it, red means that driver stack corrupts the shipped engine reduce. Your receipt stays yours; the repo keeps the raw JSON audit trail. Canary verdicts appear only on runs the author executed; community rows are structure-validated, not silicon-validated.</p>
     <div class="lb-viz"><canvas id="lbcv"></canvas></div>
     <div class="lb-legend num">
       <span><span class="lbsw lbsw-ok"></span>canary passes</span>
-      <span><span class="lbsw lbsw-bad"></span>canary fails: this stack corrupts the engine reduce</span>
+      <span><span class="lbsw lbsw-bad"></span>canary fails, author-verified: this stack corrupts the engine reduce</span>
       <span><span class="lbsw lbsw-na"></span>canary unavailable</span>
     </div>
     <div class="lb-aggs num" id="lbaggs"></div>
     <div style="margin-top:14px;"><button class="ghost" id="lbsubmit">put your dot on the map (opens a GitHub issue)</button></div>
   </section>
 
-  <div id="err">
-    <h3>CAN'T RUN — <span id="errkind">NO WEBGPU</span></h3>
-    <p id="errmsg"></p>
-  </div>
-
   <section class="methodology" id="methodology" hidden>
     <h3>Methodology</h3>
-    <p><b>The premise.</b> Batch-1 LLM decode is memory-bound: every generated token must stream the weights it touches through the GPU once. Your tokens/s ceiling is therefore <b>memory bandwidth ÷ bytes touched per token</b>. Headroom measures that bandwidth three independent ways (buffer copy, triad read-write, and a pure-read reduction — the GEMV-shaped one), then runs a from-scratch GEMV ladder with deterministic synthetic weights to show how much of the ceiling real kernels reach on your device. Synthetic weights are valid because streaming time doesn't depend on the values — only correctness checking does, and the hash-derived fill lets an FP64 CPU reference verify every kernel before it's timed.</p>
-    <p><b>The denominator is derived, not guessed.</b> Headroom range-fetches the model's safetensors header (~0.4 MB of public metadata, from a <em>pinned</em> revision — never a moving main) and classifies every tensor for text decode. For Gemma 4 E2B QAT (2.46 GB artifact, 2,780 tensors): <b>0.81 GB streams every token</b> (transformer layers 0.68 + lm_head 0.10 + per-layer projection 0.03), 1.31 GB of embedding tables is <em>gathered</em> one row per token, and 0.34 GB of vision/audio towers is never touched in text decode. Ceilings are quoted at empty context — KV-cache reads grow with context length and lower the real ceiling.</p>
-    <p><b>Validated against real engines we measured ourselves</b> (full receipts in <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence">evidence/</a>). An RTX 5070 measures <b>577 GB/s</b> here — 86% of its 672 GB/s GDDR7 spec, through a browser tab — giving an E2B ceiling of ≈717 tok/s; Xenova's engine decodes ~217 tok/s on that machine (30% of ceiling): streaming the weights needs only 1.4 ms of each 4.6 ms token, so ~70% of the budget is launch overhead and non-GEMV work. An Apple M1 measures 51–56 GB/s (74–82% of spec) → ceiling ≈63–69 tok/s; the same engine does 30–40 (~50%). Two machines, one conclusion: today's in-browser engines are <b>launch-overhead-bound, not bandwidth-bound</b> — the hardware has 2–3× headroom, which is the point of measuring it. Bonus finding from the same runs: uncoalesced access keeps ~50% of ceiling on Apple's unified memory but collapses to 27% on discrete GDDR7 — coalescing is worth 3.7× on Blackwell. Expect ±10% between sessions on busy machines (we saw 50.7 vs 55.8 GB/s minutes apart on one laptop); medians of 5 are quoted within a run. If a card's number ever disagrees with reality, that disagreement is a finding — file it.</p>
-    <p><b>Canary v2 — the shape that actually shipped.</b> The v1 variants are the naive non-uniform shapes (current Chrome rejects them at compile time — reported as BLOCKED). Canary v2 replicates, verbatim, the analysis-clean shape from the July engine: <code>subgroupAdd</code> after a lane-divergent store with an earlier reduction result live across it. It compiles clean everywhere, runs 20 trials against an FP64 reference with a <code>subgroupShuffleXor</code> butterfly as the correct-everywhere control, and requires a 32-wide minimum subgroup (skipped honestly elsewhere). Verified live on 2026-07-19: an RTX 5070 (Blackwell) on stable Chrome 150 fails <b>20/20 trials with relative errors up to 1.7×10⁻¹</b> while the butterfly passes 20/20 (<a href="https://github.com/Ar5en1c/headroom/blob/main/evidence/5070-blackwell-win11-v0.2-canary-fail.json">receipt</a>) — a live, silent correctness bug that static analysis cannot see, shown on the card as CANARY FAIL. A PASS from v2 means the engine reduce shape was <em>behaviorally verified</em> on your stack, not just assumed.</p>
+    <p><b>The premise.</b> Batch-1 LLM decode is memory-bound: every generated token must stream the weights it touches through the GPU once. Your tokens/s ceiling is therefore <b>memory bandwidth ÷ bytes touched per token</b>. Headroom measures that bandwidth three independent ways (buffer copy, triad read-write, and a pure-read reduction, the GEMV-shaped one), then runs a from-scratch GEMV ladder with deterministic synthetic weights to show how much of the ceiling real kernels reach on your device. The quoted <b>measured ceiling</b> is the strongest receipted evidence of deliverable bandwidth: the read probe or a verified kernel that beat it, whichever is higher. Synthetic weights are valid because streaming time doesn't depend on the values; only correctness checking does, and the hash-derived fill lets an FP64 CPU reference verify every kernel before it's timed.</p>
+    <p><b>The denominator is derived, not guessed.</b> Headroom range-fetches the model's safetensors header (~0.4 MB of public metadata from huggingface.co, pinned revision, never a moving main; this is the page's one outbound request and no run data rides on it) and classifies every tensor for text decode. For Gemma 4 E2B QAT (2.46 GB artifact, 2,780 tensors): <b>0.81 GB streams every token</b> (transformer layers 0.68 + lm_head 0.10 + per-layer projection 0.03), 1.31 GB of embedding tables is <em>gathered</em> one row per token, and 0.34 GB of vision/audio towers is never touched in text decode. Ceilings are quoted at empty context; KV-cache reads grow with context length and lower the real ceiling.</p>
+    <p><b>Validated against a real engine we measured ourselves</b> (full receipts in <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence">evidence/</a>). An RTX 5070 measured <b>577, 584, and 589 GB/s</b> across three receipted sessions here (86-88% of its 672 GB/s GDDR7 spec, through a browser tab), for an E2B ceiling of 717-731 tok/s. The in-browser engine we measured (Xenova's Gemma 4 WebGPU engine, the same engine the canary shape comes from) decodes <b>217 tok/s</b> on that machine (<a href="https://github.com/Ar5en1c/headroom/blob/main/evidence/5070-engine-decode-gemma4-webgpu.json">receipt</a>): 30% of ceiling. A cross-check that the comparison is fair: at f16 that decode rate would need roughly 700 GB/s of weight streaming, above the machine's measured ceiling, so the engine necessarily streams quantized weights; at the derived q4 split its stream occupies ~30% of the pipe and the other ~70% of each token's budget is launch overhead and non-GEMV work. An Apple M1 measures 51-56 GB/s (74-82% of spec), ceiling 63-69 tok/s; the same engine does 30-40 (43-63% of ceiling), while <b>native</b> Ollama on that M1 (qwen2.5-1.5b, its own bytes-per-token) decodes at 72-79% of the page's ceiling (receipt in <a href="https://github.com/Ar5en1c/headroom/tree/main/native">native/</a>). One engine, two machines, one conclusion: that engine is <b>launch-overhead-bound, not bandwidth-bound</b>; the hardware has 2-3x headroom, which is the point of measuring it. The 30-50% band drawn on the dial is this one measured engine's range on these two machines, not a survey of all engines. Bonus finding from the same runs: uncoalesced access keeps ~50% of ceiling on Apple's unified memory but collapses to 27% on discrete GDDR7; coalescing is worth 3.7x on Blackwell. Expect ±10% between sessions on busy machines (we saw 50.7 vs 55.8 GB/s minutes apart on one laptop); medians of 5 are quoted within a run. If a card's number ever disagrees with reality, that disagreement is a finding: file it.</p>
+    <p><b>Canary v2: the shape that actually shipped.</b> The v1 variants are the naive non-uniform shapes (current Chrome rejects them at compile time: reported as BLOCKED). Canary v2 replicates, verbatim, the analysis-clean shape from the July engine: <code>subgroupAdd</code> after a lane-divergent store with an earlier reduction result live across it. It compiles clean everywhere, runs 20 trials against an FP64 reference with a <code>subgroupShuffleXor</code> butterfly as the correct-everywhere control, and requires a 32-wide minimum subgroup (skipped honestly elsewhere). Verified live on 2026-07-19: an RTX 5070 (Blackwell) on stable Chrome 150 fails <b>20/20 trials with relative errors up to 1.7e-1</b> while the butterfly passes 20/20 (<a href="https://github.com/Ar5en1c/headroom/blob/main/evidence/5070-blackwell-win11-v0.2-canary-fail.json">receipt</a>): a live, silent correctness bug that static analysis cannot see, shown on the card as CANARY FAIL. A PASS from v2 means the engine reduce shape was <em>behaviorally verified</em> on your stack, not just assumed.</p>
     <h3 style="margin-top:34px;">Objections, answered</h3>
-    <p><b>"A GEMV can't hit 100% of a ceiling — your probe must be slow."</b> Three independent bandwidth probes are reported (copy, triad, pure-read); the ceiling is the read-shaped one, and a GEMV is ~pure-read too (it writes 16 KB per 128 MiB streamed). When a kernel lands a few percent <em>above</em> the probe, that's the probe's reduction overhead, the x-vector living in cache, and session variance — the receipts carry every raw number and the card just says "saturated." If our accounting were wrong, the FP64 gates would say so.</p>
-    <p><b>"Wall-clock timing without timestamp-query is amateur."</b> <code>timestamp-query</code> is quantized or absent in browsers depending on platform and flags. We time amortized blocks of ≥150 ms (auto-calibrated iteration counts) and take medians of five — timer resolution contributes &lt;0.1% error at that block size. Every receipt states the block size and repeat count, results are re-verified for correctness <em>after</em> timing, and a native CUDA companion study on the same silicon is the cross-check.</p>
+    <p><b>"A GEMV can't hit 100% of a ceiling: your probe must be slow."</b> Three independent bandwidth probes are reported (copy, triad, pure-read), and a GEMV is ~pure-read too (it writes 16 KB per 128 MiB streamed). Verified kernels can land <em>above</em> the read probe: on one receipted M1 session the best FP64-gated GEMV measured 55.4 GB/s against a 50.7 GB/s probe, 9% over (probe reduction overhead, the x-vector living in cache, and session variance). That is exactly why the quoted ceiling is <b>max(read probe, best gated kernel)</b>: a ceiling your own kernels can exceed would not be a ceiling. Every raw probe number stays in the receipt, and if our accounting were wrong the FP64 gates would say so.</p>
+    <p><b>"Wall-clock timing without timestamp-query is amateur."</b> <code>timestamp-query</code> is quantized or absent in browsers depending on platform and flags. We time amortized blocks of ≥150 ms (auto-calibrated iteration counts) and take medians of five: timer resolution contributes &lt;0.1% error at that block size. Every receipt states the block size and repeat count, results are re-verified for correctness <em>after</em> timing, and a native CUDA companion study on the same silicon is the cross-check.</p>
     <p><b>"Your buffers fit in cache."</b> The weight buffer is 128 MiB against a 48 MB L2 on the largest consumer GPU we've measured (and single-digit-MB SLCs elsewhere). Buffer sizes are in every receipt.</p>
-    <p><b>"Synthetic weights aren't a real model."</b> Streaming time doesn't depend on the values being streamed — only correctness checking does, and hash-derived fills give an FP64-checkable reference with zero download. We measure the <em>hardware ceiling</em> and validate real engines against it separately; both sides are receipted.</p>
-    <p><b>"The canary is just wide-subgroup semantics, not a bug."</b> No: the test gates on a 32-wide minimum subgroup, and the butterfly control runs <em>the same shuffle lanes in the same kernel shape</em> — it passing 20/20 proves the lane grouping is sane and the data is right; only the <code>subgroupAdd</code> lowering returns wrong sums, deterministically, against an FP64 reference. That's a miscompile, not a semantics gap.</p>
-    <p><b>"Which engines shipped this pattern?"</b> The shape is taken verbatim from the July 2026 post-mortem of a production in-browser LLM engine — root cause, upstream patch, and evidence are public in <a href="https://github.com/Ar5en1c/gemma4-webgpu-nvidia-subgroup-fix">the campaign repo</a>.</p>
-    <p><b>The rules.</b> Deterministic inputs (hash-derived, identically regenerable on CPU). Every kernel is checked against an FP64 CPU reference before it is timed — a kernel that fails correctness gets no performance number. Timing is wall-clock over large amortized dispatch blocks, median of 5 repeats, on your actual compositor-loaded browser — honest conditions, honestly labeled. If your machine hits 70% of its ceiling, the card says 70%.</p>
-    <p><b>Canary v1 — the naive tier.</b> Alongside v2, the original variants use the plainly non-uniform syntax from the same bug class. A guarded control must pass everywhere for the run to count; each risky variant reports <b>PASS</b> (your driver tolerates the pattern), <b>FAIL</b> (your stack corrupts it — engines beware), or <b>BLOCKED</b> (your browser's compiler rejects the class at compile time — the safe modern behavior, and what current Chrome does). v2 above exists precisely because BLOCKED here is not the end of the story: the shape that shipped was analysis-clean.</p>
+    <p><b>"Synthetic weights aren't a real model."</b> Streaming time doesn't depend on the values being streamed: only correctness checking does, and hash-derived fills give an FP64-checkable reference with zero download. We measure the <em>hardware ceiling</em> and validate real engines against it separately; both sides are receipted.</p>
+    <p><b>"The canary is just wide-subgroup semantics, not a bug."</b> No: the test gates on a 32-wide minimum subgroup, and the butterfly control runs <em>the same shuffle lanes in the same kernel shape</em>: it passing 20/20 proves the lane grouping is sane and the data is right; only the <code>subgroupAdd</code> lowering returns wrong sums, deterministically, against an FP64 reference. That's a miscompile, not a semantics gap.</p>
+    <p><b>"Which engines shipped this pattern?"</b> The shape is taken verbatim from the July 2026 post-mortem of a production in-browser LLM engine: root cause, upstream patch, and evidence are public in <a href="https://github.com/Ar5en1c/gemma4-webgpu-nvidia-subgroup-fix">the campaign repo</a>.</p>
+    <p><b>The rules.</b> Deterministic inputs (hash-derived, identically regenerable on CPU). Every kernel is checked against an FP64 CPU reference before it is timed: a kernel that fails correctness gets no performance number. Timing is wall-clock over large amortized dispatch blocks, median of 5 repeats, on your actual compositor-loaded browser: honest conditions, honestly labeled. If your machine hits 70% of its ceiling, the card says 70%.</p>
+    <p><b>Canary v1: the naive tier.</b> Alongside v2, the original variants use the plainly non-uniform syntax from the same bug class. A guarded control must pass everywhere for the run to count; each risky variant reports <b>PASS</b> (your driver tolerates the pattern), <b>FAIL</b> (your stack corrupts it: engines beware), or <b>BLOCKED</b> (your browser's compiler rejects the class at compile time: the safe modern behavior, and what current Chrome does). v2 above exists precisely because BLOCKED here is not the end of the story: the shape that shipped was analysis-clean.</p>
   </section>
 
   <footer>
@@ -381,7 +381,7 @@
 <script>
 'use strict';
 /* ============================================================ *
- *  HEADROOM — WebGPU bandwidth ceiling + GEMV ladder
+ *  HEADROOM: WebGPU bandwidth ceiling + GEMV ladder
  *  Method: deterministic fills, FP64 gate before timing,
  *  wall-amortized blocks, median of 5. MIT.
  * ============================================================ */
@@ -405,7 +405,7 @@ function detVal(i, seed) { // f32 in [-1, 1), exact match with WGSL
 
 /* ---------- tensor manifests: exact bytes-per-token denominators ----------
  * The safetensors header (a few hundred kB) lists every tensor's byte range.
- * Range-fetched from the PINNED revision — never a moving main. */
+ * Range-fetched from the PINNED revision: never a moving main. */
 const MANIFEST_CACHE_KEY = 'headroom-manifest-v1:';
 async function fetchSafetensorsHeader(url) {
   let r = await fetch(url, { headers: { Range: 'bytes=0-7' } });
@@ -433,9 +433,9 @@ async function fetchSafetensorsHeader(url) {
   return JSON.parse(new TextDecoder().decode(buf.slice(8, need)));
 }
 // text-decode classification (validated against the real E2B header, 2026-07-19):
-//   gathered — embedding TABLES read one row per token (embed_tokens, embed_tokens_per_layer)
-//   excluded — vision/audio towers, untouched during text decode
-//   streamed — everything else: layers, lm_head, per_layer_model_projection, norms
+//   gathered: embedding TABLES read one row per token (embed_tokens, embed_tokens_per_layer)
+//   excluded: vision/audio towers, untouched during text decode
+//   streamed: everything else: layers, lm_head, per_layer_model_projection, norms
 function classifyTextDecode(header) {
   let streamed = 0, gathered = 0, excluded = 0, count = 0;
   for (const k of Object.keys(header)) {
@@ -622,7 +622,7 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid:
 }`;
 
 // g4: subgroup reduce, vec4, uniform control flow (K4 % 256 == 0 enforced); a=M, b=K4
-// `enable` directives must precede all global declarations — hence before WGSL_COMMON
+// `enable` directives must precede all global declarations: hence before WGSL_COMMON
 const SH_G4 = 'enable subgroups;\n' + WGSL_COMMON + /* wgsl */`
 @group(0) @binding(0) var<storage, read> W4 : array<vec4<f32>>;
 @group(0) @binding(1) var<storage, read> X4 : array<vec4<f32>>;
@@ -663,7 +663,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation
 
 // canary BARE: subgroupAdd inside non-uniform control flow. Modern Tint statically
 // rejects this (a finding in itself: the browser blocks the class); older stacks
-// compile it and the driver decides — the historical garbage vector.
+// compile it and the driver decides: the historical garbage vector.
 const SH_CAN_BARE = 'enable subgroups;\n' + WGSL_COMMON + /* wgsl */`
 @group(0) @binding(0) var<storage, read> D : array<f32>;
 @group(0) @binding(1) var<storage, read_write> out : array<f32>;
@@ -677,7 +677,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation
   }
 }`;
 
-// canary LEGACY: the two-level reduce shape real engines shipped — first-level
+// canary LEGACY: the two-level reduce shape real engines shipped: first-level
 // subgroupAdd is uniform, second-level runs under `li < numSubgroups` (non-uniform
 // on any device where subgroup_size < 256). This is the shape behind the
 // NVIDIA/Windows garbage found in July 2026.
@@ -766,13 +766,13 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>,
 /* ---------- suite configuration ---------- */
 const SEED_W = 0xA11CE001, SEED_X = 0xA11CE002, SEED_C = 0xA11CE003;
 // bytes: full artifact (every-byte-streams floor-ceiling). active: bytes actually
-// streamed per token — differs for per-layer-embedding models, whose embedding
+// streamed per token: differs for per-layer-embedding models, whose embedding
 // tables are gathered (one row/token), not streamed. E2B active is an ESTIMATE
 // (~2.3B effective core params of a ~5.5B-param q4-class artifact); dense models
 // stream everything, so active === bytes.
 const MODELS = [
   { id: 'p-e2b', name: 'gemma 4 e2b qat', bytes: 2458111846, active: 1050000000, activeEst: true,
-    // pinned revision, verified 2026-07-19 — real split: streams 0.81 GB, gathers 1.31 GB, non-text 0.34 GB
+    // pinned revision, verified 2026-07-19: real split: streams 0.81 GB, gathers 1.31 GB, non-text 0.34 GB
     manifestUrl: 'https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers/resolve/b11b04294163e8e0282580b8c398f5cd52712054/model.safetensors' },
   { id: 'p-8b',  name: '8b class q4',     bytes: 4700000000, active: 4700000000 },
   { id: 'p-27b', name: 'bonsai 27b 1-bit', bytes: 3800000000, active: 3800000000 },
@@ -836,7 +836,7 @@ function sceneDone() {
   $('dr-num').textContent = p.derived ? '≈' + Math.round(p.tokLo) : Math.round(p.tokLo) + '-' + Math.round(p.tokHi);
   $('dr-unit').textContent = ' tok/s ceiling · ' + p.name.toLowerCase();
   const eff = Math.round(s.efficiency * 100);
-  $('dr-sub').textContent = fmtGB(s.readGBps) + ' GB/s read ceiling · '
+  $('dr-sub').textContent = fmtGB(s.ceilingGBps) + ' GB/s measured ceiling · '
     + (eff >= 98 ? 'your kernels can saturate it' : 'best kernel keeps ' + eff + '% of it');
   $('dr-bytes').textContent = '≈' + (anim.bytes / 1e9).toFixed(0) + ' GB streamed through your GPU for this measurement';
   sceneCanaryBadge(s.canary === 'FAIL' ? 'FAIL' : s.canary === 'PASS' ? 'PASS' : 'NA');
@@ -1097,7 +1097,7 @@ async function initGPU() {
     maxBufferSize: device.limits.maxBufferSize,
   };
   device.lost.then((e) => { if (e.reason !== 'destroyed') showError('DEVICE LOST', 'The GPU device was lost mid-run (' + e.message + '). This usually means a driver reset. Re-run the test; if it persists on the big shape, your driver is killing long dispatches.'); });
-  // surface silent WebGPU errors into the receipts — nothing hides
+  // surface silent WebGPU errors into the receipts: nothing hides
   device.addEventListener('uncapturederror', (e) => {
     const msg = String(e.error && e.error.message || e.error).slice(0, 200);
     receipt('webgpu uncaptured error', { result: msg, gate: 'ANOMALY' });
@@ -1300,7 +1300,7 @@ async function runSuite() {
     const pass_ = maxe < 1e-6;
     setProbe('fill', null, pass_ ? '<span class="ok">VERIFIED</span>' : '<span class="bad">MISMATCH</span>', pass_ ? undefined : 'bad');
     receipt('deterministic fill', { result: 'max rel err ' + maxe.toExponential(1), gate: pass_ ? 'PASS' : 'FAIL' });
-    if (!pass_) throw { kind: 'FILL MISMATCH', msg: 'GPU-generated values do not match CPU regeneration — cannot trust any further number on this device.' };
+    if (!pass_) throw { kind: 'FILL MISMATCH', msg: 'GPU-generated values do not match CPU regeneration: cannot trust any further number on this device.' };
   }
 
   /* --- FP64 references --- */
@@ -1378,7 +1378,7 @@ async function runSuite() {
       const err = relErr(refWSum, got);
       if (err > REL_TOL) {
         setProbe('read', null, '<span class="bad">GATE FAIL</span>', 'bad');
-        receipt('read ceiling', { result: 'rel err ' + err.toExponential(2), gate: 'FAIL — no number' });
+        receipt('read ceiling', { result: 'rel err ' + err.toExponential(2), gate: 'FAIL: no number' });
       } else {
         const verifyRead = async () => {
           const p2 = await readBack(device, bufRSOut, readWG * 4);
@@ -1389,7 +1389,7 @@ async function runSuite() {
         const bytes = M * K * 4;
         if (t.anomaly) {
           setProbe('read', null, '<span class="bad">TIMING ANOMALY</span>', 'bad');
-          receipt('read ceiling ★', { result: 'timing anomaly — no number', timing: t.method, gate: 'PASS then unverifiable' });
+          receipt('read ceiling ★', { result: 'timing anomaly: no number', timing: t.method, gate: 'PASS then unverifiable' });
         } else {
           readGBps = bytes / (t.msPerIter * 1e6);
           setProbe('read', readGBps, '<b>' + fmtGB(readGBps) + ' GB/s</b>');
@@ -1411,14 +1411,14 @@ async function runSuite() {
   let bestGemv = 0, bestName = '';
   for (const rung of ladder) {
     if (rung.needsSg && !hasSubgroups) {
-      setProbe(rung.id, null, '<span class="na">N/A — no subgroups</span>');
-      receipt(rung.name, { result: 'skipped', gate: 'n/a — feature absent' });
+      setProbe(rung.id, null, '<span class="na">N/A: no subgroups</span>');
+      receipt(rung.name, { result: 'skipped', gate: 'n/a: feature absent' });
       continue;
     }
-    status(rung.name + ' — correctness gate…');
+    status(rung.name + ': correctness gate…');
     const entries = [bufW, bufX, bufY, mkParams(device, rung.params[0], rung.params[1])];
     const bgG = bg(rung.pipe, entries);
-    // gate — clear Y in its OWN submit first: if the rung's dispatch is invalid
+    // gate: clear Y in its OWN submit first: if the rung's dispatch is invalid
     // and gets dropped, the gate must see zeros, not a previous rung's correct
     // output (phantom pass)
     {
@@ -1435,7 +1435,7 @@ async function runSuite() {
       for (const [m, ref] of refY) maxe = Math.max(maxe, relErr(ref, y[m]));
       if (maxe > REL_TOL) {
         setProbe(rung.id, null, '<span class="bad">GATE FAIL ' + maxe.toExponential(1) + '</span>', 'bad');
-        receipt(rung.name, { result: 'max rel err ' + maxe.toExponential(2), gate: 'FAIL — no number' });
+        receipt(rung.name, { result: 'max rel err ' + maxe.toExponential(2), gate: 'FAIL: no number' });
         continue;
       }
       status(rung.name + ' · timing…');
@@ -1449,7 +1449,7 @@ async function runSuite() {
         { bytes: bytesGemv, sanityGBps: readGBps > 0 ? readGBps : undefined, verify: verifyY });
       if (t.anomaly) {
         setProbe(rung.id, null, '<span class="bad">TIMING ANOMALY</span>', 'bad');
-        receipt(rung.name, { result: 'timing anomaly — no number (correct output, unmeasurable on this stack)', timing: t.method, gate: 'PASS (rel ' + maxe.toExponential(1) + ')' });
+        receipt(rung.name, { result: 'timing anomaly: no number (correct output, unmeasurable on this stack)', timing: t.method, gate: 'PASS (rel ' + maxe.toExponential(1) + ')' });
         continue;
       }
       const gbps = bytesGemv / (t.msPerIter * 1e6);
@@ -1464,12 +1464,12 @@ async function runSuite() {
   status('subgroup canary…');
   let canaryState = 'NA', canaryV2 = 'NA';
   if (!hasSubgroups) {
-    setProbe('can', null, '<span class="na">N/A — no subgroups</span>');
+    setProbe('can', null, '<span class="na">N/A: no subgroups</span>');
     receipt('subgroup canary', { result: 'feature absent', gate: 'n/a' });
   } else {
     const runCan = async (pipe) => {
       // clear in its OWN submit: if the risky dispatch is dropped, the readback
-      // must see zeros — never a previous variant's data (phantom pass)
+      // must see zeros: never a previous variant's data (phantom pass)
       const encC = device.createCommandEncoder();
       encC.clearBuffer(bufCanOut);
       device.queue.submit([encC.finish()]);
@@ -1485,17 +1485,17 @@ async function runSuite() {
       for (let i = 0; i < slots.length; i++) { got += slots[i]; if (slots[i] !== 0) nz++; }
       return { err: relErr(refCan, got), nz };
     };
-    // all-zero slots = dispatch dropped (stack anomaly), not a wrong answer — retry
+    // all-zero slots = dispatch dropped (stack anomaly), not a wrong answer: retry
     const runCanRetry = async (pipe) => {
       let r = await runCan(pipe);
       if (r.nz === 0) { await new Promise(res => setTimeout(res, 400)); r = await runCan(pipe); }
       return r;
     };
-    // canary detects gross corruption (garbage sums), not ulp drift — looser gate
+    // canary detects gross corruption (garbage sums), not ulp drift: looser gate
     const CAN_TOL = 1e-2;
     const guard = await runCanRetry(pCanG);
     const guardOK = guard.nz > 0 && guard.err < CAN_TOL;
-    receipt('canary guarded (control)', { result: guard.nz === 0 ? 'dispatch dropped twice — inconclusive' : 'rel err ' + guard.err.toExponential(2) + ' (' + guard.nz + ' slots)', gate: guard.nz === 0 ? 'ANOMALY — no verdict' : (guardOK ? 'PASS' : 'FAIL — suite bug or unstable driver') });
+    receipt('canary guarded (control)', { result: guard.nz === 0 ? 'dispatch dropped twice: inconclusive' : 'rel err ' + guard.err.toExponential(2) + ' (' + guard.nz + ' slots)', gate: guard.nz === 0 ? 'ANOMALY: no verdict' : (guardOK ? 'PASS' : 'FAIL: suite bug or unstable driver') });
     const variants = [
       { name: 'canary bare (non-uniform call)', built: bCanBare },
       { name: 'canary legacy two-level (engine shape)', built: bCanLegacy },
@@ -1504,26 +1504,26 @@ async function runSuite() {
     for (const v of variants) {
       if (v.built.rejected) {
         outcomes.push('REJECTED');
-        receipt(v.name, { result: 'rejected by compiler: ' + v.built.rejected, gate: 'BLOCKED — this browser refuses the pattern class' });
+        receipt(v.name, { result: 'rejected by compiler: ' + v.built.rejected, gate: 'BLOCKED: this browser refuses the pattern class' });
         continue;
       }
       const r = await runCanRetry(v.built.pipe);
-      if (r.nz === 0) { outcomes.push('INCONCLUSIVE'); receipt(v.name, { result: 'dispatch dropped — inconclusive', gate: 'ANOMALY — no verdict' }); }
-      else if (r.err < CAN_TOL) { outcomes.push('PASS'); receipt(v.name, { result: 'rel err ' + r.err.toExponential(2) + ' (' + r.nz + ' slots)', gate: 'PASS — driver tolerates the pattern' }); }
-      else { outcomes.push('FAIL'); receipt(v.name, { result: 'rel err ' + r.err.toExponential(2) + ' (' + r.nz + ' slots)', gate: 'FAIL — this stack corrupts the pattern' }); }
+      if (r.nz === 0) { outcomes.push('INCONCLUSIVE'); receipt(v.name, { result: 'dispatch dropped: inconclusive', gate: 'ANOMALY: no verdict' }); }
+      else if (r.err < CAN_TOL) { outcomes.push('PASS'); receipt(v.name, { result: 'rel err ' + r.err.toExponential(2) + ' (' + r.nz + ' slots)', gate: 'PASS: driver tolerates the pattern' }); }
+      else { outcomes.push('FAIL'); receipt(v.name, { result: 'rel err ' + r.err.toExponential(2) + ' (' + r.nz + ' slots)', gate: 'FAIL: this stack corrupts the pattern' }); }
     }
     /* --- canary v2: the exact shipped engine shape, 20 trials, butterfly control --- */
     status('subgroup canary v2 · engine shape, ' + CAN2_TRIALS + ' trials…');
     canaryV2 = 'SKIP';
     const minSg = deviceInfo.subgroupMinSize;
     if (minSg !== undefined && minSg !== 32) {
-      receipt('canary v2 (engine shape)', { result: 'skipped — needs a 32-wide minimum subgroup (this adapter: ' + minSg + '); the 32-lane reference would mismatch legitimately', gate: 'n/a' });
+      receipt('canary v2 (engine shape)', { result: 'skipped: needs a 32-wide minimum subgroup (this adapter: ' + minSg + '); the 32-lane reference would mismatch legitimately', gate: 'n/a' });
     } else {
       const bBare2 = await mkScoped(SH_CAN2(CAN2_REDUCE_BARE));
       const bBfly2 = await mkScoped(SH_CAN2(CAN2_REDUCE_BFLY));
       if (bBare2.rejected || bBfly2.rejected) {
         canaryV2 = 'BLOCKED';
-        receipt('canary v2 (engine shape)', { result: 'rejected by compiler: ' + (bBare2.rejected || bBfly2.rejected), gate: 'BLOCKED — this browser refuses even the analysis-clean shape' });
+        receipt('canary v2 (engine shape)', { result: 'rejected by compiler: ' + (bBare2.rejected || bBfly2.rejected), gate: 'BLOCKED: this browser refuses even the analysis-clean shape' });
       } else {
         const xF2 = new Float32Array(2 * CAN2_K);
         for (let i = 0; i < xF2.length; i++) xF2[i] = detVal(i, 0xC0FFEE01);
@@ -1562,8 +1562,8 @@ async function runSuite() {
         if (bareWrong > 0 && bflyWrong === 0) canaryV2 = 'REPRODUCED';
         else if (bareWrong === 0 && bflyWrong === 0) canaryV2 = 'PASS';
         else canaryV2 = 'ANOMALY';
-        receipt('canary v2 bare (engine shape)', { result: bareWrong + '/' + CAN2_TRIALS + ' trials wrong, max rel ' + bareMax.toExponential(2), gate: bareWrong > 0 ? 'FAIL — live corruption of the shipped reduce shape' : 'PASS' });
-        receipt('canary v2 butterfly (control)', { result: bflyWrong + '/' + CAN2_TRIALS + ' trials wrong, max rel ' + bflyMax.toExponential(2), gate: bflyWrong === 0 ? 'PASS' : 'FAIL — control failed, no verdict' });
+        receipt('canary v2 bare (engine shape)', { result: bareWrong + '/' + CAN2_TRIALS + ' trials wrong, max rel ' + bareMax.toExponential(2), gate: bareWrong > 0 ? 'FAIL: live corruption of the shipped reduce shape' : 'PASS' });
+        receipt('canary v2 butterfly (control)', { result: bflyWrong + '/' + CAN2_TRIALS + ' trials wrong, max rel ' + bflyMax.toExponential(2), gate: bflyWrong === 0 ? 'PASS' : 'FAIL: control failed, no verdict' });
       }
     }
 
@@ -1575,9 +1575,9 @@ async function runSuite() {
     else if (outcomes.includes('PASS')) canaryState = 'PASS';
     else if (outcomes.length && outcomes.every(o => o === 'REJECTED')) canaryState = 'BLOCKED';
     else canaryState = 'ANOMALY';
-    if (canaryState === 'PASS') setProbe('can', null, '<span class="ok">PASS' + (canaryV2 === 'PASS' ? ' — engine shape verified' : ' — tolerated') + '</span>');
+    if (canaryState === 'PASS') setProbe('can', null, '<span class="ok">PASS' + (canaryV2 === 'PASS' ? ': engine shape verified' : ': tolerated') + '</span>');
     else if (canaryState === 'BLOCKED') setProbe('can', null, '<span class="ok">BLOCKED BY COMPILER (safe)</span>');
-    else if (canaryState === 'FAIL') setProbe('can', null, '<span class="bad">FAIL — ' + (canaryV2 === 'REPRODUCED' ? 'engine shape corrupts here' : 'engines beware') + '</span>', 'bad');
+    else if (canaryState === 'FAIL') setProbe('can', null, '<span class="bad">FAIL: ' + (canaryV2 === 'REPRODUCED' ? 'engine shape corrupts here' : 'engines beware') + '</span>', 'bad');
     else if (canaryState === 'ANOMALY') setProbe('can', null, '<span class="na">INCONCLUSIVE</span>');
     else setProbe('can', null, '<span class="bad">CONTROL FAILED</span>', 'bad');
   }
@@ -1594,30 +1594,35 @@ async function runSuite() {
         gate: 'DERIVED from safetensors header',
       });
     } catch (e) {
-      receipt('tensor manifest · ' + m.name, { result: 'fetch failed (' + String(e && e.message || e).slice(0, 60) + ') — using estimate', gate: 'EST fallback' });
+      receipt('tensor manifest · ' + m.name, { result: 'fetch failed (' + String(e && e.message || e).slice(0, 60) + '): using estimate', gate: 'EST fallback' });
     }
   }
 
   /* --- score --- */
   status('done.');
-  const eff = readGBps > 0 && bestGemv > 0 ? bestGemv / readGBps : 0;
+  // the ceiling is the best receipted evidence of what the memory system can
+  // deliver: the read probe OR a verified kernel that beat it (on some stacks
+  // the x-vector cache term and probe reduction overhead let a gated GEMV
+  // land a few percent above the probe; the max keeps "ceiling" honest)
+  const ceilingGBps = Math.max(readGBps, bestGemv);
+  const eff = ceilingGBps > 0 && bestGemv > 0 ? bestGemv / ceilingGBps : 0;
   state.score = {
-    readGBps, copyGBps: state.copyGBps, triadGBps: state.triadGBps,
+    readGBps, ceilingGBps, copyGBps: state.copyGBps, triadGBps: state.triadGBps,
     bestGemvGBps: bestGemv, bestGemvName: bestName, efficiency: eff,
     canary: canaryState, canaryV2,
     projections: MODELS.map(m => ({
       name: m.name, artifactBytes: m.bytes, activeBytes: m.active,
       activeEst: !!m.activeEst, derived: !!m.derived,
       // derived split → single exact ceiling; estimate → honest band (floor: full artifact)
-      tokLo: readGBps * 1e9 / (m.derived ? m.active : m.bytes),
-      tokHi: readGBps * 1e9 / m.active,
+      tokLo: ceilingGBps * 1e9 / (m.derived ? m.active : m.bytes),
+      tokHi: ceilingGBps * 1e9 / m.active,
     })),
   };
   renderResult();
   renderMeaning();
   updateRank();
   sceneDone();
-  [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no — full re-run realloc; free the big ones
+  [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no: full re-run realloc; free the big ones
 }
 
 const MODEL_MEANING = {
@@ -1659,8 +1664,14 @@ function renderMeaning() {
       return sp;
     };
     nums.appendChild(cell('your ceiling', ceilTxt + ' tok/s', true));
-    nums.appendChild(cell('engines today (30-50%)', '≈' + engLo + '-' + engHi + ' tok/s', false));
-    nums.appendChild(cell('which feels', feelOf(engLo), false));
+    if (meta.url) {
+      // the one engine we actually measured runs this exact model
+      nums.appendChild(cell('the engine we measured (30-50%)', '≈' + engLo + '-' + engHi + ' tok/s', false));
+      nums.appendChild(cell('which feels', feelOf(engLo), false));
+    } else {
+      nums.appendChild(cell('engines on this class', 'not measured yet', false));
+      nums.appendChild(cell('at the ceiling it feels', feelOf(lo), false));
+    }
     div.appendChild(nm); div.appendChild(wh); div.appendChild(nums);
     wrap.appendChild(div);
   }
@@ -1673,7 +1684,7 @@ function renderResult() {
   $('c-dev').textContent = devName;
   $('c-devsub').textContent = (navigator.platform || '') + ' · ' + (navigator.userAgent.match(/(chrome|edg)\/[\d.]+/i) || ['browser'])[0] + ' · webgpu · ' + new Date().toISOString().slice(0, 10);
   const band = (p) => p.tokHi > p.tokLo * 1.02
-    ? Math.round(p.tokLo) + '–' + Math.round(p.tokHi)
+    ? Math.round(p.tokLo) + '-' + Math.round(p.tokHi)
     : String(Math.round(p.tokLo));
   const e2b = s.projections[0];
   $('c-big').textContent = band(e2b);
@@ -1690,12 +1701,12 @@ function renderResult() {
   $('c-eff').textContent = s.efficiency >= 0.98
     ? 'kernels saturate the measured read ceiling'
     : 'best kernel reaches ' + Math.round(s.efficiency * 100) + '% of read ceiling';
-  $('c-ceil').textContent = fmtGB(s.readGBps) + ' GB/s read';
+  $('c-ceil').textContent = fmtGB(s.ceilingGBps) + ' GB/s ceiling';
   for (let i = 0; i < MODELS.length; i++) $(MODELS[i].id).textContent = '≈' + band(s.projections[i]) + ' tok/s';
   const stamp = $('c-stamp'), line = $('c-canaryline');
-  if (s.canary === 'PASS') { stamp.textContent = 'CANARY PASS'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: PASS' + (s.canaryV2 === 'PASS' ? ' — engine reduce shape verified correct here' : ' — driver tolerates the legacy pattern'); }
+  if (s.canary === 'PASS') { stamp.textContent = 'CANARY PASS'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: PASS' + (s.canaryV2 === 'PASS' ? ': engine reduce shape verified correct here' : ': driver tolerates the legacy pattern'); }
   else if (s.canary === 'BLOCKED') { stamp.textContent = 'CANARY SAFE'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: pattern class blocked by this browser\'s compiler'; }
-  else if (s.canary === 'FAIL') { stamp.textContent = 'CANARY FAIL'; stamp.className = 'canary-stamp fail'; line.textContent = 'SUBGROUP CANARY: FAIL — ' + (s.canaryV2 === 'REPRODUCED' ? 'the shipped engine reduce shape corrupts on this stack' : 'in-browser engines may output garbage here'); }
+  else if (s.canary === 'FAIL') { stamp.textContent = 'CANARY FAIL'; stamp.className = 'canary-stamp fail'; line.textContent = 'SUBGROUP CANARY: FAIL, ' + (s.canaryV2 === 'REPRODUCED' ? 'the shipped engine reduce shape corrupts on this stack' : 'in-browser engines may output garbage here'); }
   else { stamp.textContent = 'CANARY N/A'; stamp.className = 'canary-stamp'; line.textContent = 'SUBGROUP CANARY: ' + (s.canary === 'NA' ? 'N/A (no subgroups feature)' : s.canary === 'ANOMALY' ? 'INCONCLUSIVE (dispatch dropped)' : 'CONTROL FAILED'); }
   // receipts table
   const tb = $('rtable').querySelector('tbody');
@@ -1704,9 +1715,13 @@ function renderResult() {
     const tr = document.createElement('tr');
     const gate = r.gate || '';
     const gateCls = gate.startsWith('PASS') ? 'ok' : gate.startsWith('FAIL') ? 'bad' : 'nap';
-    tr.innerHTML = '<td>' + r.probe + '</td><td>' + (r.result || '') + '</td><td>'
-      + (r.bytes ? (r.bytes / (1 << 20)).toFixed(0) + ' MiB' : '—') + '</td><td>'
-      + (r.timing || '—') + '</td><td class="' + gateCls + '">' + gate + '</td>';
+    const cells = [r.probe, r.result || '', r.bytes ? (r.bytes / (1 << 20)).toFixed(0) + ' MiB' : '—', r.timing || '—', gate];
+    cells.forEach((c, i) => {
+      const td = document.createElement('td');
+      if (i === 4) td.className = gateCls;
+      td.textContent = c;
+      tr.appendChild(td);
+    });
     tb.appendChild(tr);
   }
   $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1743,10 +1758,10 @@ function drawSharePNG(scale, meta) {
   g.fillText(devName, 60, 140);
   g.fillStyle = '#8A90A0'; g.font = mono(14);
   g.fillText(platform + ' · webgpu · ' + new Date().toISOString().slice(0, 10), 60, 166);
-  // big number — band: full-artifact floor to PLE-adjusted core-only bound
+  // big number: band: full-artifact floor to PLE-adjusted core-only bound
   const pj = s.projections[0];
   const isBand = pj.tokHi > pj.tokLo * 1.02;
-  const bigTxt = isBand ? Math.round(pj.tokLo) + '–' + Math.round(pj.tokHi) : String(Math.round(pj.tokLo));
+  const bigTxt = isBand ? Math.round(pj.tokLo) + '-' + Math.round(pj.tokHi) : String(Math.round(pj.tokLo));
   g.fillStyle = '#E8EAF0'; g.font = mono(120, 700);
   g.fillText(bigTxt, 60, 320);
   const bw = g.measureText(bigTxt).width;
@@ -1764,8 +1779,8 @@ function drawSharePNG(scale, meta) {
   g.fillStyle = '#8A90A0'; g.font = mono(14);
   g.fillText('0', mx, my + 44);
   const effTxt = s.efficiency >= 0.98
-    ? 'KERNELS SATURATE THE READ CEILING (' + fmtGB(s.readGBps) + ' GB/s)'
-    : 'BEST KERNEL ' + Math.round(s.efficiency * 100) + '% OF READ CEILING (' + fmtGB(s.readGBps) + ' GB/s)';
+    ? 'KERNELS SATURATE THE MEASURED CEILING (' + fmtGB(s.ceilingGBps) + ' GB/s)'
+    : 'BEST KERNEL ' + Math.round(s.efficiency * 100) + '% OF MEASURED CEILING (' + fmtGB(s.ceilingGBps) + ' GB/s)';
   g.fillText(effTxt, mx + mw / 2 - g.measureText(effTxt).width / 2, my + 44);
   const ceilTxt = 'CEILING';
   g.fillText(ceilTxt, mx + mw - g.measureText(ceilTxt).width, my + 44);
@@ -1773,7 +1788,7 @@ function drawSharePNG(scale, meta) {
   let px = 60;
   for (const p of s.projections) {
     g.fillStyle = '#E8EAF0'; g.font = mono(30, 700);
-    const v = '≈' + (p.tokHi > p.tokLo * 1.02 ? Math.round(p.tokLo) + '–' + Math.round(p.tokHi) : Math.round(p.tokLo));
+    const v = '≈' + (p.tokHi > p.tokLo * 1.02 ? Math.round(p.tokLo) + '-' + Math.round(p.tokHi) : Math.round(p.tokLo));
     g.fillText(v, px, 530);
     g.fillStyle = '#8A90A0'; g.font = mono(13);
     g.fillText(p.name.toUpperCase(), px, 554);
@@ -1782,7 +1797,10 @@ function drawSharePNG(scale, meta) {
   // footer
   g.strokeStyle = '#262D3A'; g.beginPath(); g.moveTo(60, 580); g.lineTo(W - 60, 580); g.stroke();
   g.fillStyle = '#8A90A0'; g.font = mono(13);
-  g.fillText('MEASURED, NOT VIBES · FP64-GATED · MEDIANS OF 5 · NOTHING LEFT THIS MACHINE', 60, 606);
+  g.fillText('MEASURED, NOT VIBES · FP64-GATED · MEDIANS OF 5 · NO ACCOUNT, NO TELEMETRY', 60, 606);
+  g.fillStyle = '#E8EAF0'; g.font = mono(15, 700);
+  const url = 'ar5en1c.github.io/headroom';
+  g.fillText(url, W - 60 - g.measureText(url).width, 606);
   return cv;
 }
 
@@ -1807,7 +1825,19 @@ function showError(kind, msg) {
   $('dialreadout').hidden = true;
   anim.hold = false;
   scene.mode = 'ambient'; scene.t0 = 0; scene.idle = 0;
+  for (const v of document.querySelectorAll('#probes .pval')) {
+    if (v.textContent.trim() === '…') v.textContent = 'stopped';
+  }
+  for (const r of document.querySelectorAll('#probes .probe.live')) r.classList.remove('live');
   status('stopped.');
+  $('err').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+if (!navigator.gpu) {
+  $('runbtn').disabled = true;
+  $('runbtn').textContent = 'NEEDS CHROME OR EDGE (WEBGPU)';
+  $('err').style.display = 'block';
+  $('errkind').textContent = 'NO WEBGPU';
+  $('errmsg').textContent = 'This browser has no WebGPU. Use Chrome or Edge on desktop, or recent Android Chrome; Firefox and Safari support is still rolling out. The community map and methodology below work everywhere.';
 }
 $('runbtn').addEventListener('click', () => {
   $('runbtn').disabled = true;
@@ -1834,28 +1864,33 @@ $('jsonbtn').addEventListener('click', () => {
 /* ---------- receipt import: any collector's JSON, rendered against this run ---------- */
 function renderImportedReceipt(j, filename) {
   const tb = $('itable').querySelector('tbody');
-  const myRead = state.score && state.score.readGBps;
+  const myCeil = state.score && state.score.ceilingGBps;
+  const num = (x) => { const n = Number(x); return isFinite(n) && n > 0 ? n : null; };
   let what = '', headline = '', vs = '—';
-  const collector = j.collector || j.tool || '?';
+  const collector = String(j.collector || j.tool || '?').slice(0, 40);
   if (j.collector === 'ollama') {
-    what = (j.device && j.device.model) || 'model';
-    const d = j.score && j.score.decode_toks_median;
+    what = String((j.device && j.device.model) || 'model').slice(0, 80);
+    const d = num(j.score && j.score.decode_toks_median);
     headline = d != null ? d + ' tok/s decode (median)' : '(no decode score)';
-    const mb = j.device && j.device.modelBytes;
-    if (myRead && mb && d) vs = Math.round(100 * d / (myRead * 1e9 / mb)) + '% of this device\'s ceiling for that model';
+    const mb = num(j.device && j.device.modelBytes);
+    if (myCeil && mb && d) vs = Math.round(100 * d / (myCeil * 1e9 / mb)) + '% of this device\'s ceiling for that model';
     else if (!mb) vs = 'model bytes unknown';
   } else if (j.collector === 'webgpu-page') {
     const dv = j.device || {};
-    what = [dv.vendor, dv.architecture].filter(Boolean).join(' · ') || 'device';
-    const r = j.score && j.score.readGBps;
-    headline = r != null ? fmtGB(r) + ' GB/s read · best ' + (j.score.bestGemvName || '') : '(no score)';
-    if (myRead && r) vs = (r / myRead).toFixed(2) + '× this device\'s read ceiling';
+    what = [dv.vendor, dv.architecture].filter(Boolean).map(x => String(x).slice(0, 40)).join(' · ') || 'device';
+    const r = num(j.score && j.score.readGBps);
+    headline = r != null ? fmtGB(r) + ' GB/s read · best ' + String(j.score.bestGemvName || '').slice(0, 40) : '(no score)';
+    if (myCeil && r) vs = (r / myCeil).toFixed(2) + 'x this device\'s ceiling';
   } else {
-    what = filename || '';
-    headline = '(unrecognized schema — tool: ' + collector + ')';
+    what = String(filename || '').slice(0, 80);
+    headline = '(unrecognized schema: tool ' + collector + ')';
   }
   const tr = document.createElement('tr');
-  tr.innerHTML = '<td>' + collector + '</td><td>' + what + '</td><td>' + headline + '</td><td>' + vs + '</td>';
+  for (const c of [collector, what, headline, vs]) {
+    const td = document.createElement('td');
+    td.textContent = c;
+    tr.appendChild(td);
+  }
   tb.appendChild(tr);
   $('imports').hidden = false;
 }
@@ -1863,7 +1898,7 @@ $('importbtn').addEventListener('click', () => $('importfile').click());
 $('importfile').addEventListener('change', async (e) => {
   for (const f of e.target.files) {
     try { renderImportedReceipt(JSON.parse(await f.text()), f.name); }
-    catch (err) { renderImportedReceipt({ collector: 'parse error' }, f.name + ' — ' + String(err.message).slice(0, 60)); }
+    catch (err) { renderImportedReceipt({ collector: 'parse error' }, f.name + ': ' + String(err.message).slice(0, 60)); }
   }
   e.target.value = '';
 });
@@ -1874,20 +1909,35 @@ $('copybtn').addEventListener('click', async () => {
   setTimeout(() => { $('copybtn').textContent = 'copy JSON receipt'; }, 1500);
 });
 
-$('forumbtn').addEventListener('click', async () => {
+function resultText() {
   const s = state.score, d = state.deviceInfo || {};
-  if (!s) return;
+  if (!s) return null;
   const dev = [d.vendor, d.architecture].filter(Boolean).join(' ') || 'gpu';
   const best = s.efficiency >= 0.98 ? 'kernels saturate it' : 'best kernel ' + Math.round(s.efficiency * 100) + '% of it';
   const pj = s.projections[0];
   const e2b = pj.derived ? '~' + Math.round(pj.tokLo) + ' tok/s' : Math.round(pj.tokLo) + '-' + Math.round(pj.tokHi) + ' tok/s';
   const can = s.canaryV2 === 'REPRODUCED' ? 'canary FAIL (driver corrupts the shipped subgroup reduce)'
     : s.canaryV2 === 'PASS' ? 'canary PASS' : 'canary ' + (s.canary || 'n/a');
-  const txt = 'headroom (' + dev + '): read ceiling ' + fmtGB(s.readGBps) + ' GB/s, ' + best +
+  return 'headroom (' + dev + '): measured ceiling ' + fmtGB(s.ceilingGBps) + ' GB/s, ' + best +
     '; gemma 4 e2b ceiling ' + e2b + '; ' + can + '. run yours: https://ar5en1c.github.io/headroom/';
-  await navigator.clipboard.writeText(txt);
-  $('forumbtn').textContent = 'copied ✓';
+}
+$('forumbtn').addEventListener('click', async () => {
+  const txt = resultText();
+  if (!txt) return;
+  try {
+    await navigator.clipboard.writeText(txt);
+    $('forumbtn').textContent = 'copied ✓';
+  } catch (e) { $('forumbtn').textContent = 'copy blocked, select from receipt'; }
   setTimeout(() => { $('forumbtn').textContent = 'copy result (forum text)'; }, 1500);
+});
+$('xbtn').addEventListener('click', () => {
+  const txt = resultText();
+  if (!txt) return;
+  if (navigator.share && matchMedia('(hover: none)').matches) {
+    navigator.share({ text: txt }).catch(() => {});
+    return;
+  }
+  window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(txt), '_blank', 'noopener');
 });
 
 function updateRank() {
@@ -2035,7 +2085,7 @@ $('lbsubmit').addEventListener('click', async () => {
       $('lbsubmit').textContent = 'receipt copied. paste it into the issue form';
     } catch (e) { /* clipboard may be blocked; the issue form explains the paste */ }
   } else {
-    $('lbsubmit').textContent = 'opens GitHub — run the test first to copy a receipt';
+    $('lbsubmit').textContent = 'opens GitHub: run the test first to copy a receipt';
   }
   window.open(LB_ISSUE_URL, '_blank', 'noopener');
 });

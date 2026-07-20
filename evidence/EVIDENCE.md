@@ -79,3 +79,11 @@ machine, 45 minutes after the headline receipt:
   control 2.76×10⁻⁸ — the exact values of run 1, because the fills and trial
   seeds are deterministic. **The miscompile is deterministic, not a flaky
   race: two runs, 45 minutes apart, produce the same wrong sums.**
+
+## Engine decode receipt (provenance)
+
+`5070-engine-decode-gemma4-webgpu.json` is copied verbatim from the campaign repo
+(gemma4-webgpu-nvidia-subgroup-fix/evidence/5070-fix-end-to-end.json): the patched
+Xenova Gemma 4 WebGPU engine decoding on the same RTX 5070 this page measured,
+run1 217.2 tok/s, run2 212.9 tok/s (decodeTokPerSec). It is the receipt behind
+the "engine decodes 217 tok/s, 30% of ceiling" reference on the page.

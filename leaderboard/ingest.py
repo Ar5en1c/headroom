@@ -58,11 +58,14 @@ def main():
 
     s = j.get("score") or {}
     read = s.get("readGBps")
-    if not isinstance(read, (int, float)) or not (1 <= read <= 8000):
-        fail("score.readGBps out of plausible range (1..8000)")
+    if not isinstance(read, (int, float)) or not (1 <= read <= 1500):
+        fail("score.readGBps out of plausible range (1..1500)")
     eff = s.get("efficiency")
-    if not isinstance(eff, (int, float)) or not (0.05 <= eff <= 1.15):
-        fail("score.efficiency out of plausible range (0.05..1.15)")
+    if not isinstance(eff, (int, float)) or not (0.05 <= eff <= 1.05):
+        fail("score.efficiency out of plausible range (0.05..1.05)")
+    ceil = s.get("ceilingGBps")
+    if ceil is not None and (not isinstance(ceil, (int, float)) or not (read <= ceil + 0.001 and ceil <= 1500)):
+        fail("score.ceilingGBps inconsistent with readGBps")
     if not (s.get("projections") or []):
         fail("score.projections required")
 

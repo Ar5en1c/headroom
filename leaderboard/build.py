@@ -54,7 +54,12 @@ def row_from(path):
         return None
     pj = (s.get("projections") or [{}])[0]
     rel = os.path.relpath(path, ROOT)
+    # canary verdicts are a claim about a NAMED vendor's driver; only rows the
+    # author ran (evidence/) may carry one. Community receipts are structure-
+    # validated, not silicon-validated, so their canary field is dropped.
+    trusted = rel.replace(os.sep, "/").startswith("evidence/")
     return {
+        "verified": trusted,
         "vendor": d.get("vendor") or "",
         "arch": d.get("architecture") or "",
         "device": d.get("device") or "",
@@ -65,8 +70,8 @@ def row_from(path):
         "e2bLo": round(pj["tokLo"]) if pj.get("tokLo") else None,
         "e2bHi": round(pj["tokHi"]) if pj.get("tokHi") else None,
         "derived": bool(pj.get("derived")),
-        "canary": s.get("canary") or "",
-        "canaryV2": s.get("canaryV2") or "",
+        "canary": (s.get("canary") or "") if trusted else "",
+        "canaryV2": (s.get("canaryV2") or "") if trusted else "",
         "ts": (j.get("ts") or "")[:10],
         "receipt": REPO_BLOB + rel.replace(os.sep, "/"),
     }

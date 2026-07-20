@@ -1,0 +1,43 @@
+{
+  "tool": "headroom",
+  "collector": "ollama",
+  "version": "0.1.0",
+  "ts": "2026-07-19T21:16:43.656022+00:00",
+  "device": {
+    "ollama": "0.20.3",
+    "model": "qwen2.5:1.5b-instruct",
+    "modelBytes": 986061892
+  },
+  "method": {
+    "runs": 3,
+    "num_predict": 256,
+    "timing": "ollama eval_duration medians, warm model",
+    "note": "first run may include load; inspect per-run receipts"
+  },
+  "score": {
+    "decode_toks_median": 40.7,
+    "decode_toks_all": [
+      40.3,
+      40.7,
+      40.8
+    ],
+    "prefill_toks_median": 1958.8
+  },
+  "receipts": [
+    {
+      "probe": "generate run 1",
+      "result": "40.3 tok/s decode (256 tokens)",
+      "gate": "ollama eval_count/eval_duration"
+    },
+    {
+      "probe": "generate run 2",
+      "result": "40.7 tok/s decode (256 tokens)",
+      "gate": "ollama eval_count/eval_duration"
+    },
+    {
+      "probe": "generate run 3",
+      "result": "40.8 tok/s decode (256 tokens)",
+      "gate": "ollama eval_count/eval_duration"
+    }
+  ]
+}
