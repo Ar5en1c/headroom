@@ -143,7 +143,7 @@
   .pval .ok { color: var(--pass); font-weight: 700; }
   .pval .bad { color: var(--fail); font-weight: 700; }
   .pval .na { color: var(--na); }
-  @media (max-width: 640px) { .probe { grid-template-columns: 1fr 110px; } .barwrap, .statuscell { display: none; } }
+  @media (max-width: 640px) { .probe { grid-template-columns: 1fr 14px 96px; } .barwrap { display: none; } .statuscell { justify-content: center; } }
   #statusline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); padding: 10px 2px; letter-spacing: 0.05em; min-height: 34px; }
   @keyframes rowrise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @keyframes dotpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -210,6 +210,7 @@
   .lbsw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; }
   .lbsw-ok { background: var(--ink); }
   .lbsw-bad { background: var(--fail); box-shadow: 0 0 8px color-mix(in srgb, var(--fail) 55%, transparent); }
+  .lbsw-blk { border: 1.5px solid var(--pass); }
   .lbsw-na { border: 1.5px solid var(--muted); }
   .lb-aggs { margin-top: 18px; display: grid; gap: 7px; font-size: 12.5px; }
   .lb-aggs .aggh { font-size: 10.5px; letter-spacing: 0.14em; color: var(--muted); margin-top: 10px; }
@@ -217,6 +218,13 @@
   .lb-aggs .agg b { font-weight: 700; min-width: 90px; }
   .lb-aggs .agg span { color: var(--muted); }
   .lb-aggs .agg .hot { color: var(--fail); font-weight: 600; }
+  #engineround { margin-top: 30px; border-top: 1px dashed var(--grid); padding-top: 8px; }
+  #engineround h3 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+  #engstat { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 1.4em; }
+  #engres { margin-top: 12px; display: grid; gap: 6px; font-size: 13px; }
+  #engres b { color: var(--accent); }
+  .lb-wanted { margin-top: 16px; padding: 10px 14px; border: 1px dashed var(--edge); font-size: 11.5px; letter-spacing: 0.06em; color: var(--muted); }
+  .lb-wanted b { color: var(--accent); letter-spacing: 0.12em; }
   .lb-pass { color: var(--pass); font-weight: 600; }
   .lb-fail { color: var(--fail); font-weight: 600; }
   .lb-na { color: var(--na); font-weight: 600; }
@@ -227,6 +235,9 @@
   table.rtable tr:last-child td { border-bottom: none; }
   .ok { color: var(--pass); font-weight: 700; } .bad { color: var(--fail); font-weight: 700; } .nap { color: var(--na); }
 
+  #challenge { position: relative; z-index: 2; margin: 12px 24px 0; padding: 10px 14px; border: 1px solid var(--edge); border-left: 3px solid var(--accent); background: var(--panel); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; box-shadow: var(--lift); }
+  #ch-line { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; letter-spacing: 0.02em; }
+  #ch-x { padding: 4px 10px; font-size: 10px; margin-left: auto; }
   #err { display: none; margin-top: 18px; border: 1px solid var(--fail); background: var(--panel); padding: 18px 20px; }
   #err h3 { margin: 0 0 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; color: var(--fail); }
   #err p { margin: 0 0 8px; font-size: 14.5px; max-width: 70ch; }
@@ -250,6 +261,10 @@
 
   <section id="hero">
     <canvas id="scenecv" aria-hidden="true"></canvas>
+    <div id="challenge" hidden>
+      <span id="ch-line" class="num"></span>
+      <button class="ghost" id="ch-x">dismiss</button>
+    </div>
     <div id="dialreadout" hidden>
       <div class="dr-big num"><span id="dr-num">—</span><span class="dr-unit" id="dr-unit"></span><span class="dr-badge" id="dr-canary" hidden></span></div>
       <div class="dr-sub num" id="dr-sub">preparing…</div>
@@ -297,7 +312,7 @@
           <div class="mscale"><span>0</span><span id="c-eff">kernel efficiency —</span><span id="c-ceil">ceiling —</span></div>
         </div>
         <table class="proj">
-          <tr><td id="l-e2b">gemma 4 e2b qat · 2.46 GB (ple, ~1.05 GB/token est)</td><td class="v" id="p-e2b">—</td></tr>
+          <tr><td id="l-e2b">gemma 4 e2b qat · 2.46 GB (per-layer embeddings, ~1.05 GB/token est)</td><td class="v" id="p-e2b">—</td></tr>
           <tr><td>8b class q4 · ≈4.7 GB dense</td><td class="v" id="p-8b">—</td></tr>
           <tr><td>bonsai 27b 1-bit · 3.8 GB dense</td><td class="v" id="p-27b">—</td></tr>
         </table>
@@ -309,6 +324,7 @@
         <button class="ghost" id="copybtn">copy JSON receipt</button>
         <button class="ghost" id="forumbtn">copy result (forum text)</button>
         <button class="ghost" id="xbtn">post to X</button>
+        <button class="ghost" id="linkbtn">copy result link (compare)</button>
         <button class="ghost" id="againbtn">run again</button>
         <button class="ghost" id="importbtn">import receipt (json)</button>
         <input type="file" id="importfile" accept="application/json,.json" multiple hidden>
@@ -318,6 +334,13 @@
     <div id="meaning">
       <h3>What your ceiling means</h3>
       <div id="meanrows"></div>
+      <div id="engineround" hidden>
+        <h3>Engine round (beta): a real engine vs your ceiling</h3>
+        <p class="note">Runs the transformers.js WebGPU path on the exact model your ceiling is quoted for (<a href="https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX" target="_blank" rel="noopener">onnx-community/gemma-4-E2B-it-ONNX</a>, apache-2.0). One-time model download (~1.6 GB, cached by your browser), then decode is timed with the same discipline as the probes: warmup excluded, 3 reps of 128 tokens, median. Utilization divides by the derived 0.81 GB/token split and is labeled approximate: the ONNX q4 layout differs slightly from the QAT artifact.</p>
+        <button class="ghost" id="engbtn">run the engine round (downloads the model)</button>
+        <div id="engstat" class="num"></div>
+        <div id="engres" class="num" hidden></div>
+      </div>
       <p class="note" id="meanref">Reference points, measured by this page and receipted: an RTX 5070 reads 577-589 GB/s across three sessions (86-88% of its 672 spec) for a gemma 4 e2b ceiling of 717-731 tok/s, and the one in-browser engine we measured decodes 217 (30% of ceiling). An Apple M1 reads 51-56 GB/s for a ceiling of 63-69; the same engine does 30-40, while native Ollama on that M1 runs its model at 72-79% of ceiling. The gap is engine overhead, not bandwidth: that is the headroom. <a href="https://github.com/Ar5en1c/headroom/tree/main/evidence" target="_blank" rel="noopener">receipts</a> · <a href="#" id="meanmeth">methodology</a></p>
     </div>
     <div id="imports" hidden>
@@ -349,9 +372,11 @@
     <div class="lb-legend num">
       <span><span class="lbsw lbsw-ok"></span>canary passes</span>
       <span><span class="lbsw lbsw-bad"></span>canary fails, author-verified: this stack corrupts the engine reduce</span>
+      <span><span class="lbsw lbsw-blk"></span>canary blocked by the compiler (safe)</span>
       <span><span class="lbsw lbsw-na"></span>canary unavailable</span>
     </div>
     <div class="lb-aggs num" id="lbaggs"></div>
+    <div class="lb-wanted num" id="lbwanted" hidden></div>
     <div style="margin-top:14px;"><button class="ghost" id="lbsubmit">put your dot on the map (opens a GitHub issue)</button></div>
   </section>
 
@@ -407,11 +432,11 @@ function detVal(i, seed) { // f32 in [-1, 1), exact match with WGSL
  * The safetensors header (a few hundred kB) lists every tensor's byte range.
  * Range-fetched from the PINNED revision: never a moving main. */
 const MANIFEST_CACHE_KEY = 'headroom-manifest-v1:';
-async function fetchSafetensorsHeader(url) {
-  let r = await fetch(url, { headers: { Range: 'bytes=0-7' } });
+async function fetchSafetensorsHeader(url, signal) {
+  let r = await fetch(url, { headers: { Range: 'bytes=0-7' }, signal });
   if (r.status === 206) {
     const n = Number(new DataView(await r.arrayBuffer()).getBigUint64(0, true));
-    const r2 = await fetch(url, { headers: { Range: 'bytes=8-' + (7 + n) } });
+    const r2 = await fetch(url, { headers: { Range: 'bytes=8-' + (7 + n) }, signal });
     if (r2.status === 206) return JSON.parse(new TextDecoder().decode(await r2.arrayBuffer()));
     r = r2;
   }
@@ -450,10 +475,10 @@ function classifyTextDecode(header) {
   }
   return { streamed, gathered, excluded, count };
 }
-async function resolveManifest(url) {
+async function resolveManifest(url, signal) {
   const key = MANIFEST_CACHE_KEY + url;
   try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c && c.streamed) return c; } catch (e) {}
-  const split = classifyTextDecode(await fetchSafetensorsHeader(url));
+  const split = classifyTextDecode(await fetchSafetensorsHeader(url, signal));
   try { localStorage.setItem(key, JSON.stringify(split)); } catch (e) {}
   return split;
 }
@@ -1008,7 +1033,12 @@ function sceneFrame(now) {
 }
 function sceneInit() {
   if (!$('scenecv')) return;
-  if (SCENE_STILL) { scene.v = 1; drawScene(0); addEventListener('resize', () => drawScene(0)); return; }
+  if (SCENE_STILL) {
+    scene.v = 1; drawScene(0);
+    addEventListener('resize', () => drawScene(0));
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => drawScene(0));
+    return;
+  }
   if (matchMedia('(hover: hover)').matches) {
     addEventListener('mousemove', (e) => {
       scene.tx = (e.clientX / innerWidth - 0.5) * 20;
@@ -1308,7 +1338,17 @@ async function runSuite() {
   await new Promise(r => setTimeout(r, 30)); // let UI paint
   const t0ref = performance.now();
   let refWSum = 0;
-  for (let i = 0; i < M * K; i++) refWSum += detVal(i, SEED_W);
+  // chunked so the main thread breathes: the dial keeps moving and the tab
+  // never freezes for seconds on slower CPUs
+  {
+    const total = M * K, CHUNK = 4 << 20;
+    for (let i = 0; i < total; ) {
+      const end = Math.min(total, i + CHUNK);
+      for (; i < end; i++) refWSum += detVal(i, SEED_W);
+      status('fp64 referee: ' + Math.round(i / 1e6) + '/' + Math.round(total / 1e6) + 'M values…');
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
   const xHost = new Float64Array(K);
   for (let k = 0; k < K; k++) xHost[k] = detVal(k, SEED_X);
   const gateRows = [];
@@ -1516,8 +1556,8 @@ async function runSuite() {
     status('subgroup canary v2 · engine shape, ' + CAN2_TRIALS + ' trials…');
     canaryV2 = 'SKIP';
     const minSg = deviceInfo.subgroupMinSize;
-    if (minSg !== undefined && minSg !== 32) {
-      receipt('canary v2 (engine shape)', { result: 'skipped: needs a 32-wide minimum subgroup (this adapter: ' + minSg + '); the 32-lane reference would mismatch legitimately', gate: 'n/a' });
+    if (minSg !== 32) {
+      receipt('canary v2 (engine shape)', { result: 'skipped: needs a known 32-wide minimum subgroup (this adapter: ' + (minSg === undefined ? 'unreported' : minSg) + '); the 32-lane reference would mismatch legitimately', gate: 'n/a' });
     } else {
       const bBare2 = await mkScoped(SH_CAN2(CAN2_REDUCE_BARE));
       const bBfly2 = await mkScoped(SH_CAN2(CAN2_REDUCE_BFLY));
@@ -1587,13 +1627,17 @@ async function runSuite() {
   for (const m of MODELS) {
     if (!m.manifestUrl) continue;
     try {
-      const sp = await resolveManifest(m.manifestUrl);
+      var mfAbort = new AbortController();
+      var mfTimer = setTimeout(() => mfAbort.abort(), 12000);
+      const sp = await resolveManifest(m.manifestUrl, mfAbort.signal);
+      clearTimeout(mfTimer);
       m.active = sp.streamed; m.activeEst = false; m.derived = true;
       receipt('tensor manifest · ' + m.name, {
         result: 'streams ' + (sp.streamed / 1e9).toFixed(2) + ' GB/token · gathers ' + (sp.gathered / 1e9).toFixed(2) + ' GB · non-text ' + (sp.excluded / 1e9).toFixed(2) + ' GB (' + sp.count + ' tensors @ pinned rev)',
         gate: 'DERIVED from safetensors header',
       });
     } catch (e) {
+      clearTimeout(mfTimer);
       receipt('tensor manifest · ' + m.name, { result: 'fetch failed (' + String(e && e.message || e).slice(0, 60) + '): using estimate', gate: 'EST fallback' });
     }
   }
@@ -1605,6 +1649,10 @@ async function runSuite() {
   // the x-vector cache term and probe reduction overhead let a gated GEMV
   // land a few percent above the probe; the max keeps "ceiling" honest)
   const ceilingGBps = Math.max(readGBps, bestGemv);
+  if (!(ceilingGBps > 0)) {
+    showError('NO CEILING MEASURED', 'Every bandwidth probe failed its gate or timed out on this stack, so there is no honest number to show. The receipts table above records what happened; please consider filing it as an issue with your device details.');
+    return;
+  }
   const eff = ceilingGBps > 0 && bestGemv > 0 ? bestGemv / ceilingGBps : 0;
   state.score = {
     readGBps, ceilingGBps, copyGBps: state.copyGBps, triadGBps: state.triadGBps,
@@ -1621,7 +1669,9 @@ async function runSuite() {
   renderResult();
   renderMeaning();
   updateRank();
+  updateCompare();
   sceneDone();
+  if (new URLSearchParams(location.search).has('engine')) $('engineround').hidden = false;
   [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no: full re-run realloc; free the big ones
 }
 
@@ -1690,11 +1740,11 @@ function renderResult() {
   $('c-big').textContent = band(e2b);
   $('c-bigcap').textContent = e2b.derived
     ? 'gemma 4 e2b · streams ' + (e2b.activeBytes / 1e9).toFixed(2) + ' GB/token (derived, empty context)'
-    : 'gemma 4 e2b · ceiling band: full-stream → core-only (ple, est)';
+    : 'gemma 4 e2b · ceiling band: full-stream to core-only (per-layer embeddings, est)';
   const l = $('l-e2b');
   if (l) l.textContent = e2b.derived
     ? 'gemma 4 e2b qat · streams ' + (e2b.activeBytes / 1e9).toFixed(2) + ' GB/token (derived)'
-    : 'gemma 4 e2b qat · 2.46 GB (ple, ~1.05 GB/token est)';
+    : 'gemma 4 e2b qat · 2.46 GB (per-layer embeddings, ~1.05 GB/token est)';
   const effPct = Math.min(100, Math.round(s.efficiency * 100)); // meter clamps; label stays honest
   $('c-fill').style.width = effPct + '%';
   $('c-tick').style.left = effPct + '%';
@@ -1904,11 +1954,162 @@ $('importfile').addEventListener('change', async (e) => {
 });
 
 $('copybtn').addEventListener('click', async () => {
-  await navigator.clipboard.writeText(receiptJSON());
-  $('copybtn').textContent = 'copied ✓';
+  try {
+    await navigator.clipboard.writeText(receiptJSON());
+    $('copybtn').textContent = 'copied ✓';
+  } catch (e) { $('copybtn').textContent = 'copy blocked, use download'; }
   setTimeout(() => { $('copybtn').textContent = 'copy JSON receipt'; }, 1500);
 });
 
+/* ---------- engine round (beta, behind ?engine=1 until hardware-verified) ----------
+   The point of the whole instrument: the same page that measured your ceiling
+   measures a real engine against it, so utilization is a percentage of YOUR
+   pipe, not an absolute number confounded by hardware. */
+const ENG_MODEL = 'onnx-community/gemma-4-E2B-it-ONNX';
+const ENG_CDNS = [
+  'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0',
+  'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',
+];
+let engBusy = false;
+async function runEngineRound() {
+  if (engBusy) return;
+  engBusy = true;
+  $('engbtn').disabled = true;
+  const say = (m) => { $('engstat').textContent = m; };
+  try {
+    say('loading transformers.js 4.2.0…');
+    let T = null, lastErr = null;
+    for (const url of ENG_CDNS) {
+      try { T = await import(url); break; } catch (e) { lastErr = e; }
+    }
+    if (!T) throw lastErr || new Error('transformers.js failed to load');
+    say('loading tokenizer…');
+    const tok = await T.AutoTokenizer.from_pretrained(ENG_MODEL);
+    say('downloading model (one-time, browser-cached after this)…');
+    let lastPct = -1;
+    const model = await T.AutoModelForMultimodalLM.from_pretrained(ENG_MODEL, {
+      device: 'webgpu',
+      progress_callback: (p) => {
+        if (p && p.status === 'progress' && p.total) {
+          const pct = Math.round(p.loaded / p.total * 100);
+          if (pct !== lastPct) { lastPct = pct; say('downloading ' + (p.file || 'model') + ': ' + pct + '%'); }
+        }
+      },
+    });
+    const messages = [{ role: 'user', content: 'Explain photosynthesis in detail, covering the light and dark reactions.' }];
+    const inputs = tok.apply_chat_template(messages, { add_generation_prompt: true, return_dict: true });
+    const timeGen = async (maxNew) => {
+      let n = 0, t0 = 0, tLast = 0;
+      const streamer = new T.TextStreamer(tok, {
+        skip_prompt: true,
+        callback_function: () => {},
+        token_callback_function: () => { const now = performance.now(); if (!n) t0 = now; tLast = now; n++; },
+      });
+      await model.generate({ ...inputs, max_new_tokens: maxNew, do_sample: false, streamer });
+      return n > 1 ? (n - 1) / ((tLast - t0) / 1000) : 0;
+    };
+    say('warmup: 16 tokens…');
+    await timeGen(16);
+    const reps = [];
+    for (let i = 0; i < 3; i++) {
+      say('timing decode: rep ' + (i + 1) + '/3, 128 tokens…');
+      reps.push(await timeGen(128));
+    }
+    const tokS = median(reps);
+    const s = state.score;
+    const util = s && s.ceilingGBps > 0 ? tokS / (s.ceilingGBps * 1e9 / 0.805e9) : null;
+    const res = $('engres');
+    res.textContent = '';
+    const line = (html) => { const d = document.createElement('div'); d.textContent = html; res.appendChild(d); };
+    const lineB = (pre, hot, post) => {
+      const d = document.createElement('div');
+      d.appendChild(document.createTextNode(pre));
+      const b = document.createElement('b'); b.textContent = hot; d.appendChild(b);
+      d.appendChild(document.createTextNode(post));
+      res.appendChild(d);
+    };
+    lineB('transformers.js decode: ', tokS.toFixed(1) + ' tok/s', ' (median of 3: ' + reps.map(r => r.toFixed(1)).join(', ') + ')');
+    if (util != null) lineB('utilization: ', Math.round(util * 100) + '% of your measured ceiling', ' (approx: derived q4 split)');
+    line('same model, same page, same discipline as the probes above.');
+    res.hidden = false;
+    say('engine round complete.');
+    receipt('engine round · transformers.js webgpu', {
+      result: tokS.toFixed(1) + ' tok/s decode, ' + (util != null ? Math.round(util * 100) + '% of measured ceiling (approx)' : 'no ceiling to compare'),
+      timing: '3 reps x 128 tokens, warmup excluded, medians; model ' + ENG_MODEL,
+      gate: 'n/a (engine, not a gated kernel)',
+    });
+    if (s) s.engine = { runner: 'transformers.js@4.2.0 webgpu', model: ENG_MODEL, decodeTokS: +tokS.toFixed(2), reps: reps.map(r => +r.toFixed(2)), utilApprox: util != null ? +util.toFixed(3) : null };
+  } catch (e) {
+    say('engine round failed: ' + String(e && e.message || e).slice(0, 140));
+  } finally {
+    engBusy = false;
+    $('engbtn').disabled = false;
+  }
+}
+$('engbtn').addEventListener('click', () => { runEngineRound(); });
+
+function uaOS() {
+  const u = navigator.userAgent;
+  if (u.includes('Android')) return 'android';
+  if (u.includes('CrOS')) return 'chromeos';
+  if (u.includes('Windows NT')) return 'windows';
+  if (u.includes('Mac OS X') || u.includes('Macintosh')) return 'macos';
+  if (u.includes('Linux')) return 'linux';
+  return '';
+}
+function resultLink() {
+  const s = state.score, d = state.deviceInfo || {};
+  if (!s) return null;
+  const p = s.projections.find(m => m.derived) || s.projections[0];
+  const payload = {
+    v: 1, d: [d.vendor, d.architecture].filter(Boolean).join(' · ').slice(0, 60), o: uaOS(),
+    c: +s.ceilingGBps.toFixed(1), e: +s.efficiency.toFixed(3),
+    k: s.canary === 'FAIL' ? 'FAIL' : s.canary === 'PASS' ? 'PASS' : 'NA',
+    t: Math.round(p.tokLo), ts: new Date().toISOString().slice(0, 10),
+  };
+  payload.d = payload.d.replace(/[^\x20-\xFF]/g, '?'); // btoa is Latin-1 only
+  try {
+    return 'https://ar5en1c.github.io/headroom/#r='
+      + btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch (e) { return null; }
+}
+function initCompare() {
+  const m = location.hash.match(/#r=([A-Za-z0-9_-]+)/);
+  if (!m) return;
+  let p;
+  try { p = JSON.parse(atob(m[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) { return; }
+  const num = (x, lo, hi) => { const n = Number(x); return isFinite(n) && n >= lo && n <= hi ? n : null; };
+  const ceil = num(p.c, 1, 2000);
+  if (!ceil) return;
+  state.challenge = {
+    d: String(p.d || 'their machine').slice(0, 60), o: String(p.o || '').slice(0, 12),
+    c: ceil, t: num(p.t, 1, 100000), k: ['FAIL', 'PASS', 'NA'].includes(p.k) ? p.k : 'NA',
+  };
+  const c = state.challenge;
+  $('ch-line').textContent = c.d + (c.o ? ' · ' + c.o : '') + ' measured a ' + fmtGB(c.c) + ' GB/s ceiling'
+    + (c.t ? ' (≈' + c.t + ' tok/s e2b)' : '') + (c.k === 'FAIL' ? ' · canary FAIL' : '') + '. Run yours to compare.';
+  $('challenge').hidden = false;
+}
+function updateCompare() {
+  const c = state.challenge, s = state.score;
+  if (!c || !s) return;
+  const r = s.ceilingGBps / c.c;
+  const verdict = r >= 1.02 ? 'your ceiling is ' + r.toFixed(2) + 'x theirs'
+    : r <= 0.98 ? 'their ceiling is ' + (1 / r).toFixed(2) + 'x yours'
+    : 'a dead heat';
+  $('ch-line').textContent = c.d + ': ' + fmtGB(c.c) + ' GB/s · you: ' + fmtGB(s.ceilingGBps) + ' GB/s · ' + verdict + '.';
+}
+$('ch-x').addEventListener('click', () => { $('challenge').hidden = true; state.challenge = null; });
+$('linkbtn').addEventListener('click', async () => {
+  const url = resultLink();
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    $('linkbtn').textContent = 'link copied ✓';
+  } catch (e) { $('linkbtn').textContent = url.slice(0, 40); }
+  setTimeout(() => { $('linkbtn').textContent = 'copy result link (compare)'; }, 1800);
+});
+initCompare();
 function resultText() {
   const s = state.score, d = state.deviceInfo || {};
   if (!s) return null;
@@ -1943,8 +2144,18 @@ $('xbtn').addEventListener('click', () => {
 function updateRank() {
   const el = $('c-rank');
   if (!el || !state.score || !lbRows.length) return;
-  const better = lbRows.filter(r => r.readGBps > state.score.readGBps).length;
-  el.textContent = '#' + (better + 1) + ' of ' + (lbRows.length + 1) + ' on the board';
+  const mine = state.score.readGBps;
+  const n = lbRows.length + 1;
+  const rank = lbRows.filter(r => r.readGBps > mine).length + 1;
+  const myOs = uaOS();
+  // a tiny board makes absolute rank read as a loss; peer framing is honest
+  // and kinder until the census fills in
+  if (n >= 15 && rank < n) { el.textContent = '#' + rank + ' of ' + n + ' on the board'; return; }
+  const peers = myOs ? lbRows.filter(r => (r.os || '').toLowerCase() === myOs) : [];
+  if (!peers.length) { el.textContent = myOs ? 'first ' + myOs + ' run on the board' : rank + ' of ' + n; return; }
+  const pb = peers.filter(r => r.readGBps > mine).length;
+  el.textContent = pb === 0 ? 'fastest ' + myOs + ' run on the board so far'
+    : '#' + (pb + 1) + ' of ' + (peers.length + 1) + ' ' + myOs + ' runs';
 }
 
 /* ---------- community leaderboard (opt-in, hardware rows only) ---------- */
@@ -1983,7 +2194,7 @@ function drawBoard() {
   const mixc = (c, p) => 'color-mix(in srgb, ' + c + ' ' + p + '%, transparent)';
   const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
   const padL = 44, padR = 16, padT = 30, padB = 40;
-  const xmin = 8, xmax = 1500, ymin = 50, ymax = 110;
+  const xmin = 8, xmax = 1500, ymin = 50, ymax = 122;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const X = v => padL + (Math.log10(v) - Math.log10(xmin)) / (Math.log10(xmax) - Math.log10(xmin)) * (W - padL - padR);
   const Y = v => padT + (ymax - v) / (ymax - ymin) * (H - padT - padB);
@@ -2007,28 +2218,44 @@ function drawBoard() {
   const xc = 'read bandwidth, GB/s (log)';
   g.fillText(xc, W - padR - g.measureText(xc).width, H - 8);
   g.fillText('kernels keep, % of own ceiling', padL, 14);
-  // dots with dodged labels
-  const placed = [];
-  const rows = [...lbRows].sort((a, b) => a.readGBps - b.readGBps);
-  for (const r of rows) {
-    const x = X(clamp(r.readGBps, xmin, xmax));
-    const y = Y(clamp(r.bestPct == null ? 60 : r.bestPct, ymin, ymax));
+  const ann = 'above 100: pre-v0.3 rows, probe overshoot';
+  g.fillStyle = mixc(muted, 55);
+  g.fillText(ann, W - padR - g.measureText(ann).width, Y(112) - 6);
+  // identical hardware clusters into one dot with a count
+  const groups = new Map();
+  for (const r of lbRows.slice(0, 400)) {
     const [cst] = lbCanary(r);
-    if (cst === 'FAIL') {
+    const key = [(r.vendor || '?'), (r.arch || ''), (r.os || '?'), cst].join('|').toLowerCase();
+    (groups.get(key) || groups.set(key, []).get(key)).push(r);
+  }
+  const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  const dots = [...groups.entries()].map(([key, rs]) => ({
+    key, n: rs.length,
+    x: X(clamp(med(rs.map(r => r.readGBps)), xmin, xmax)),
+    y: Y(clamp(med(rs.map(r => r.bestPct == null ? 60 : r.bestPct)), ymin, ymax)),
+    cst: lbCanary(rs[0])[0],
+    lbl: ((rs[0].arch || rs[0].vendor || '?') + ' · ' + (rs[0].os || '?')).toLowerCase() + (rs.length > 1 ? ' x' + rs.length : ''),
+  })).sort((a, b) => a.x - b.x);
+  const placed = [];
+  for (const d of dots) {
+    const r0 = d.n > 1 ? 6.5 : 5.5;
+    if (d.cst === 'FAIL') {
       g.fillStyle = fail; g.shadowColor = fail; g.shadowBlur = 10;
-      g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.fill(); g.shadowBlur = 0;
-    } else if (cst === 'PASS') {
+      g.beginPath(); g.arc(d.x, d.y, r0, 0, 7); g.fill(); g.shadowBlur = 0;
+    } else if (d.cst === 'PASS') {
       g.fillStyle = mixc(ink, 88);
-      g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.fill();
+      g.beginPath(); g.arc(d.x, d.y, r0, 0, 7); g.fill();
+    } else if (d.cst === 'BLOCKED') {
+      g.strokeStyle = V('--pass'); g.lineWidth = 1.8;
+      g.beginPath(); g.arc(d.x, d.y, r0 - 0.5, 0, 7); g.stroke();
     } else {
       g.strokeStyle = mixc(muted, 85); g.lineWidth = 1.6;
-      g.beginPath(); g.arc(x, y, 5, 0, 7); g.stroke();
+      g.beginPath(); g.arc(d.x, d.y, r0 - 0.5, 0, 7); g.stroke();
     }
-    const lbl = ((r.arch || r.vendor || '?') + ' · ' + (r.os || '?')).toLowerCase();
     g.font = mono(10.5);
-    const w = g.measureText(lbl).width;
-    let lx = x + 11, ly = y + 3.5;
-    if (lx + w > W - padR) lx = x - 11 - w;
+    const w = g.measureText(d.lbl).width;
+    let lx = d.x + 11, ly = d.y + 3.5;
+    if (lx + w > W - padR) lx = d.x - 11 - w;
     for (const dy of [0, 13, -13, 26, -26, 39]) {
       const box = { x: lx, y: ly + dy - 9, w: w, h: 13 };
       if (!placed.some(p => box.x < p.x + p.w && p.x < box.x + box.w && box.y < p.y + p.h && p.y < box.y + box.h)) {
@@ -2036,7 +2263,7 @@ function drawBoard() {
       }
     }
     g.fillStyle = mixc(muted, 90);
-    g.fillText(lbl, lx, ly);
+    g.fillText(d.lbl, lx, ly);
   }
 }
 function renderAggs() {
@@ -2074,20 +2301,35 @@ function renderAggs() {
   };
   block('BY OS', 'os');
   block('BY VENDOR', 'vendor');
+  renderWanted();
+}
+function renderWanted() {
+  const el = $('lbwanted');
+  const have = (k) => new Set(lbRows.map(r => String(r[k] || '').toLowerCase()).filter(Boolean));
+  const missing = [];
+  for (const v of ['amd', 'intel', 'qualcomm']) if (!have('vendor').has(v)) missing.push('first ' + v + ' run');
+  for (const o of ['linux', 'android', 'windows', 'macos']) if (!have('os').has(o)) missing.push('first ' + o + ' run');
+  if (!missing.length) { el.hidden = true; return; }
+  el.textContent = '';
+  const b = document.createElement('b'); b.textContent = 'WANTED: ';
+  el.appendChild(b);
+  el.appendChild(document.createTextNode(missing.join(' · ') + '. One click below puts your stack on the census.'));
+  el.hidden = false;
 }
 addEventListener('resize', drawBoard);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(drawBoard, 50));
 loadLeaderboard();
 $('lbsubmit').addEventListener('click', async () => {
+  // open synchronously so popup blockers treat it as user-initiated
+  window.open(LB_ISSUE_URL, '_blank', 'noopener');
   if (state.score) {
     try {
       await navigator.clipboard.writeText(receiptJSON());
       $('lbsubmit').textContent = 'receipt copied. paste it into the issue form';
-    } catch (e) { /* clipboard may be blocked; the issue form explains the paste */ }
+    } catch (e) { $('lbsubmit').textContent = 'clipboard blocked: use copy JSON receipt above'; }
   } else {
-    $('lbsubmit').textContent = 'opens GitHub: run the test first to copy a receipt';
+    $('lbsubmit').textContent = 'opened GitHub: run the test first to copy a receipt';
   }
-  window.open(LB_ISSUE_URL, '_blank', 'noopener');
 });
 </script>
 </body>
