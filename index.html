@@ -66,7 +66,7 @@
   #dialreadout { position: relative; z-index: 1; text-align: center; margin-top: 12vh; }
   .dr-big { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: clamp(44px, 7vw, 92px); letter-spacing: -0.03em; line-height: 1; }
   .dr-unit { font-size: clamp(16px, 2vw, 26px); color: var(--muted); font-weight: 400; margin-left: 12px; }
-  .dr-badge[hidden] { display: none; }
+  [hidden] { display: none !important; }
   .dr-badge { display: inline-block; vertical-align: middle; margin-left: 16px; font-size: 13px; letter-spacing: 0.12em; border: 1.5px solid var(--fail); color: var(--fail); padding: 5px 10px; }
   .dr-badge.okb { border-color: var(--pass); color: var(--pass); }
   .dr-sub { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; color: var(--muted); margin-top: 14px; letter-spacing: 0.04em; min-height: 1.5em; }
@@ -114,6 +114,12 @@
   #runsheet { display: none; padding-top: 34px; }
   :root { --lift: 0 28px 70px -38px rgba(23, 24, 26, 0.35); --sheen: color-mix(in srgb, var(--ink) 3%, transparent); }
   @media (prefers-color-scheme: dark) { :root { --lift: 0 32px 80px -36px rgba(0, 0, 0, 0.7); --sheen: rgba(255, 255, 255, 0.03); } }
+  details.xd > summary { cursor: pointer; list-style: none; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--edge); padding-bottom: 6px; margin: 8px 0 10px; }
+  details.xd > summary::-webkit-details-marker { display: none; }
+  details.xd > summary::before { content: '▸ '; color: var(--accent); }
+  details.xd[open] > summary::before { content: '▾ '; }
+  .rs-sum { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .rs-h { font-weight: 700; color: var(--ink); font-size: 15px; letter-spacing: 0.06em; }
   .runhead { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
   .runhead h2 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   #devline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); letter-spacing: 0.04em; }
@@ -210,8 +216,8 @@
   .lbsw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; }
   .lbsw-ok { background: var(--ink); }
   .lbsw-bad { background: var(--fail); box-shadow: 0 0 8px color-mix(in srgb, var(--fail) 55%, transparent); }
-  .lbsw-blk { border: 1.5px solid var(--pass); }
-  .lbsw-na { border: 1.5px solid var(--muted); }
+  .lbsw-eng { background: var(--muted); border-radius: 2px; }
+  .lbsw-engest { border: 1.5px solid var(--muted); border-radius: 2px; }
   .lb-aggs { margin-top: 18px; display: grid; gap: 7px; font-size: 12.5px; }
   .lb-aggs .aggh { font-size: 10.5px; letter-spacing: 0.14em; color: var(--muted); margin-top: 10px; }
   .lb-aggs .agg { display: flex; gap: 18px; flex-wrap: wrap; border-bottom: 1px dashed var(--grid); padding-bottom: 7px; }
@@ -269,7 +275,7 @@
       <div class="dr-big num"><span id="dr-num">—</span><span class="dr-unit" id="dr-unit"></span><span class="dr-badge" id="dr-canary" hidden></span></div>
       <div class="dr-sub num" id="dr-sub">preparing…</div>
       <div class="dr-bytes num" id="dr-bytes"></div>
-      <div class="dr-hint">run sheet below ↓</div>
+      <div class="dr-hint">full results below ↓</div>
     </div>
     <div class="hero-inner">
       <div class="eyebrow"><span class="edot"></span>webgpu · fp64-gated · receipts attached</div>
@@ -351,29 +357,33 @@
       </table></div>
     </div>
     <div id="receipts">
-      <h3>Receipts: every number, its method</h3>
-      <div class="rtable-wrap"><table class="rtable" id="rtable">
-        <thead><tr><th>probe</th><th>result</th><th>bytes/pass</th><th>iters × reps</th><th>gate</th></tr></thead>
-        <tbody></tbody>
-      </table></div>
+      <details class="xd">
+        <summary>Receipts: every number, its method</summary>
+        <div class="rtable-wrap"><table class="rtable" id="rtable">
+          <thead><tr><th>probe</th><th>result</th><th>bytes/pass</th><th>iters × reps</th><th>gate</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </details>
     </div>
   </section>
 
   <section id="runsheet">
-    <div class="runhead"><h2>RUN SHEET</h2><span id="devline" class="num">detecting device…</span></div>
-    <div id="statusline">preparing…</div>
-    <div id="probes"></div>
+    <details id="rsd" class="xd" open>
+      <summary class="rs-sum"><span class="rs-h">RUN SHEET: every probe, live</span><span id="devline" class="num">detecting device…</span></summary>
+      <div id="statusline">preparing…</div>
+      <div id="probes"></div>
+    </details>
   </section>
 
   <section id="leaderboard" hidden>
-    <h3>The community map: every run is a dot, hardware only</h3>
-    <p class="lb-note">Opt-in: the button copies your receipt and opens a public GitHub issue (hardware only, no accounts). Right means a faster memory pipe, high means kernels keep more of it, red means that driver stack corrupts the shipped engine reduce. Your receipt stays yours; the repo keeps the raw JSON audit trail. Canary verdicts appear only on runs the author executed; community rows are structure-validated, not silicon-validated.</p>
+    <h3>The headroom map: what engines get vs what hardware can do</h3>
+    <p class="lb-note">Each bar is one kind of machine, measured by this page. The left mark is what an LLM engine delivers today; the right mark is that hardware's ceiling; the span between them is the headroom. Solid engine marks were measured on our machines; hollow ones are the 30-50% range of the one engine we measured, applied as an estimate. Board is opt-in via a public GitHub issue: hardware only, no accounts, and canary verdicts appear only on author-run receipts.</p>
     <div class="lb-viz"><canvas id="lbcv"></canvas></div>
     <div class="lb-legend num">
-      <span><span class="lbsw lbsw-ok"></span>canary passes</span>
-      <span><span class="lbsw lbsw-bad"></span>canary fails, author-verified: this stack corrupts the engine reduce</span>
-      <span><span class="lbsw lbsw-blk"></span>canary blocked by the compiler (safe)</span>
-      <span><span class="lbsw lbsw-na"></span>canary unavailable</span>
+      <span><span class="lbsw lbsw-ok"></span>ceiling (canary passes or blocked-safe)</span>
+      <span><span class="lbsw lbsw-bad"></span>ceiling on a stack that corrupts the engine reduce (author-verified)</span>
+      <span><span class="lbsw lbsw-eng"></span>engine today, measured</span>
+      <span><span class="lbsw lbsw-engest"></span>engine today, estimated (30-50%)</span>
     </div>
     <div class="lb-aggs num" id="lbaggs"></div>
     <div class="lb-wanted num" id="lbwanted" hidden></div>
@@ -836,6 +846,7 @@ function sceneRun() {
   $('dr-bytes').textContent = ''; $('dr-canary').hidden = true;
   anim.bytes = 0; anim.hold = false;
   scene.mode = 'live'; scene.tv = 0; scene.sweeping = false; scene.idle = 0;
+  const rsd = $('rsd'); if (rsd) rsd.open = true;
   if (SCENE_STILL) { scene.v = 0; drawScene(0); }
 }
 function sceneMeasure(gbps, label) {
@@ -856,6 +867,7 @@ function sceneDone() {
   const s = state.score; if (!s) return;
   scene.mode = 'done';
   document.body.classList.add('rundone');
+  const rsd = $('rsd'); if (rsd) rsd.open = false;
   scene.tv = Math.max(0.05, Math.min(1.02, s.efficiency));
   const p = s.projections.find(m => m.derived) || s.projections[0];
   $('dr-num').textContent = p.derived ? '≈' + Math.round(p.tokLo) : Math.round(p.tokLo) + '-' + Math.round(p.tokHi);
@@ -1749,7 +1761,7 @@ function renderResult() {
   $('c-fill').style.width = effPct + '%';
   $('c-tick').style.left = effPct + '%';
   $('c-eff').textContent = s.efficiency >= 0.98
-    ? 'kernels saturate the measured read ceiling'
+    ? 'kernels saturate the measured ceiling'
     : 'best kernel reaches ' + Math.round(s.efficiency * 100) + '% of read ceiling';
   $('c-ceil').textContent = fmtGB(s.ceilingGBps) + ' GB/s ceiling';
   for (let i = 0; i < MODELS.length; i++) $(MODELS[i].id).textContent = '≈' + band(s.projections[i]) + ' tok/s';
@@ -2179,91 +2191,104 @@ async function loadLeaderboard() {
     renderAggs();
   } catch (e) { /* board is optional; the instrument works without it */ }
 }
+/* Engine numbers we actually measured, matched to board clusters; every
+   other cluster gets the receipted 30-50% range as a labeled estimate. */
+const ENGINE_MEASURED = [
+  { vendor: 'nvidia', os: 'windows', lo: 217, hi: 217 },
+  { vendor: 'apple', os: 'macos', lo: 30, hi: 40 },
+];
 function drawBoard() {
   const cv = $('lbcv');
   if (!cv || !lbRows.length || !cv.clientWidth) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const W = cv.clientWidth, H = cv.clientHeight;
-  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-  const g = cv.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, W, H);
   const cs = getComputedStyle(document.documentElement);
   const V = n => cs.getPropertyValue(n).trim();
   const ink = V('--ink'), muted = V('--muted'), accent = V('--accent'), gridc = V('--grid'), fail = V('--fail');
   const mixc = (c, p) => 'color-mix(in srgb, ' + c + ' ' + p + '%, transparent)';
   const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-  const padL = 44, padR = 16, padT = 30, padB = 40;
-  const xmin = 8, xmax = 1500, ymin = 50, ymax = 122;
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const X = v => padL + (Math.log10(v) - Math.log10(xmin)) / (Math.log10(xmax) - Math.log10(xmin)) * (W - padL - padR);
-  const Y = v => padT + (ymax - v) / (ymax - ymin) * (H - padT - padB);
-  // grid: log-x in GB/s, linear-y in % of own ceiling
-  g.font = mono(10);
-  for (const gx of [10, 30, 100, 300, 1000]) {
-    g.strokeStyle = gridc; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(X(gx), padT); g.lineTo(X(gx), H - padB); g.stroke();
-    g.fillStyle = mixc(muted, 75);
-    const lbl = String(gx);
-    g.fillText(lbl, X(gx) - g.measureText(lbl).width / 2, H - padB + 16);
-  }
-  for (const gy of [60, 80, 100]) {
-    const ceil = gy === 100;
-    g.strokeStyle = ceil ? mixc(accent, 45) : gridc; g.lineWidth = ceil ? 1.5 : 1;
-    g.beginPath(); g.moveTo(padL, Y(gy)); g.lineTo(W - padR, Y(gy)); g.stroke();
-    g.fillStyle = ceil ? accent : mixc(muted, 75);
-    g.fillText(gy + '%', 8, Y(gy) + 3);
-  }
-  g.fillStyle = mixc(muted, 80);
-  const xc = 'read bandwidth, GB/s (log)';
-  g.fillText(xc, W - padR - g.measureText(xc).width, H - 8);
-  g.fillText('kernels keep, % of own ceiling', padL, 14);
-  const ann = 'above 100: pre-v0.3 rows, probe overshoot';
-  g.fillStyle = mixc(muted, 55);
-  g.fillText(ann, W - padR - g.measureText(ann).width, Y(112) - 6);
-  // identical hardware clusters into one dot with a count
+  // cluster identical hardware; the chart tells the story in tok/s on e2b
   const groups = new Map();
   for (const r of lbRows.slice(0, 400)) {
-    const [cst] = lbCanary(r);
-    const key = [(r.vendor || '?'), (r.arch || ''), (r.os || '?'), cst].join('|').toLowerCase();
+    if (!r.e2bLo) continue;
+    const key = [(r.vendor || '?'), (r.arch || ''), (r.os || '?')].join('|').toLowerCase();
     (groups.get(key) || groups.set(key, []).get(key)).push(r);
   }
   const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
-  const dots = [...groups.entries()].map(([key, rs]) => ({
-    key, n: rs.length,
-    x: X(clamp(med(rs.map(r => r.readGBps)), xmin, xmax)),
-    y: Y(clamp(med(rs.map(r => r.bestPct == null ? 60 : r.bestPct)), ymin, ymax)),
-    cst: lbCanary(rs[0])[0],
-    lbl: ((rs[0].arch || rs[0].vendor || '?') + ' · ' + (rs[0].os || '?')).toLowerCase() + (rs.length > 1 ? ' x' + rs.length : ''),
-  })).sort((a, b) => a.x - b.x);
-  const placed = [];
-  for (const d of dots) {
-    const r0 = d.n > 1 ? 6.5 : 5.5;
-    if (d.cst === 'FAIL') {
-      g.fillStyle = fail; g.shadowColor = fail; g.shadowBlur = 10;
-      g.beginPath(); g.arc(d.x, d.y, r0, 0, 7); g.fill(); g.shadowBlur = 0;
-    } else if (d.cst === 'PASS') {
-      g.fillStyle = mixc(ink, 88);
-      g.beginPath(); g.arc(d.x, d.y, r0, 0, 7); g.fill();
-    } else if (d.cst === 'BLOCKED') {
-      g.strokeStyle = V('--pass'); g.lineWidth = 1.8;
-      g.beginPath(); g.arc(d.x, d.y, r0 - 0.5, 0, 7); g.stroke();
+  const rows = [...groups.values()].map(rs => {
+    const ceil = med(rs.map(r => r.e2bLo));
+    const m = ENGINE_MEASURED.find(e =>
+      (rs[0].vendor || '').toLowerCase() === e.vendor && (rs[0].os || '').toLowerCase() === e.os);
+    const canaryFail = rs.some(r => lbCanary(r)[0] === 'FAIL');
+    return {
+      lbl: ((rs[0].arch || rs[0].vendor || '?') + ' · ' + (rs[0].os || '?')).toLowerCase() + (rs.length > 1 ? ' x' + rs.length : ''),
+      ceil, canaryFail, measured: !!m,
+      engLo: m ? m.lo : Math.round(ceil * 0.30),
+      engHi: m ? m.hi : Math.round(ceil * 0.50),
+    };
+  }).sort((a, b) => b.ceil - a.ceil).slice(0, 12);
+  if (!rows.length) return;
+  const ROW = 44, padT = 34, padB = 46, padL = 14, padR = 16;
+  const H = padT + rows.length * ROW + padB;
+  cv.style.height = H + 'px';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.clientWidth;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const xmin = 5, xmax = 1500;
+  const X = v => padL + (Math.log10(Math.max(xmin, Math.min(xmax, v))) - Math.log10(xmin)) / (Math.log10(xmax) - Math.log10(xmin)) * (W - padL - padR);
+  // gridlines in tok/s
+  g.font = mono(10);
+  for (const gx of [10, 30, 100, 300, 1000]) {
+    g.strokeStyle = gridc; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(X(gx), padT - 12); g.lineTo(X(gx), H - padB + 6); g.stroke();
+    g.fillStyle = mixc(muted, 75);
+    const lbl = String(gx);
+    g.fillText(lbl, X(gx) - g.measureText(lbl).width / 2, H - padB + 20);
+  }
+  g.fillStyle = mixc(muted, 80);
+  const xc = 'tokens per second, gemma 4 e2b (log)';
+  g.fillText(xc, W - padR - g.measureText(xc).width, H - 8);
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const y = padT + i * ROW + ROW * 0.62;
+    const xe0 = X(r.engLo), xe1 = X(r.engHi), xc2 = X(r.ceil);
+    // headroom span: the gap the page exists to show
+    g.fillStyle = mixc(accent, 8);
+    g.fillRect(xe1, y - 5, Math.max(0, xc2 - xe1), 10);
+    g.strokeStyle = mixc(muted, 45); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(xe0, y); g.lineTo(xc2, y); g.stroke();
+    // engine mark: solid block when measured, hollow when estimated
+    if (r.measured) {
+      g.fillStyle = mixc(muted, 95);
+      g.fillRect(xe0 - 2, y - 6, Math.max(5, xe1 - xe0 + 4), 12);
     } else {
       g.strokeStyle = mixc(muted, 85); g.lineWidth = 1.6;
-      g.beginPath(); g.arc(d.x, d.y, r0 - 0.5, 0, 7); g.stroke();
+      g.strokeRect(xe0, y - 6, Math.max(6, xe1 - xe0), 12);
     }
-    g.font = mono(10.5);
-    const w = g.measureText(d.lbl).width;
-    let lx = d.x + 11, ly = d.y + 3.5;
-    if (lx + w > W - padR) lx = d.x - 11 - w;
-    for (const dy of [0, 13, -13, 26, -26, 39]) {
-      const box = { x: lx, y: ly + dy - 9, w: w, h: 13 };
-      if (!placed.some(p => box.x < p.x + p.w && p.x < box.x + box.w && box.y < p.y + p.h && p.y < box.y + box.h)) {
-        placed.push(box); ly += dy; break;
-      }
+    // ceiling cap
+    if (r.canaryFail) {
+      g.fillStyle = fail; g.shadowColor = fail; g.shadowBlur = 9;
+      g.beginPath(); g.arc(xc2, y, 6, 0, 7); g.fill(); g.shadowBlur = 0;
+    } else {
+      g.fillStyle = mixc(ink, 90);
+      g.beginPath(); g.arc(xc2, y, 6, 0, 7); g.fill();
     }
-    g.fillStyle = mixc(muted, 90);
-    g.fillText(d.lbl, lx, ly);
+    // labels: hardware above the bar, headroom multiple at the cap
+    g.fillStyle = mixc(ink, 80); g.font = mono(11.5, 700);
+    g.fillText(r.lbl, padL + 2, y - 14);
+    const hx = (r.ceil / r.engHi);
+    if (hx >= 1.15) {
+      const htxt = hx.toFixed(1) + 'x headroom';
+      g.fillStyle = mixc(accent, 90); g.font = mono(10.5, 700);
+      const tw = g.measureText(htxt).width;
+      const lx = xc2 + 12 + tw > W - padR ? xc2 - tw - 12 : xc2 + 12;
+      g.fillText(htxt, lx, y + 3.5);
+    }
+    g.fillStyle = mixc(muted, 75); g.font = mono(10);
+    const etxt = r.measured ? r.engLo + (r.engHi > r.engLo ? '-' + r.engHi : '') + ' measured' : r.engLo + '-' + r.engHi + ' est';
+    const ew = g.measureText(etxt).width;
+    g.fillText(etxt, Math.max(padL, Math.min(xe0 - 4, W - padR - ew)), y + 20);
   }
 }
 function renderAggs() {
