@@ -54,15 +54,22 @@
   .plate .sub { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 
   /* landing */
-  #hero { padding: 56px 0 32px; }
+  #hero { padding: 44px 0 32px; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr); gap: 44px; align-items: center; margin-top: 8px; }
+  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } .hero-gauge { max-width: 440px; margin: 0 auto; width: 100%; } }
+  .eyebrow { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); display: flex; align-items: flex-start; gap: 9px; margin-bottom: 16px; line-height: 1.5; }
+  .edot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 9px color-mix(in srgb, var(--pass) 60%, transparent); animation: dotpulse 1.6s ease-in-out infinite; flex-shrink: 0; margin-top: 4px; }
   #hero h1 {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: clamp(34px, 6.4vw, 68px); font-weight: 700; line-height: 1.02;
-    letter-spacing: -0.03em; margin: 0 0 18px; text-wrap: balance;
+    font-size: clamp(38px, 7.2vw, 94px); font-weight: 700; line-height: 0.98;
+    letter-spacing: -0.035em; margin: 0 0 26px; text-wrap: balance;
   }
   #hero h1 .dim { color: var(--muted); }
-  #hero p.lede { max-width: 60ch; font-size: 17px; margin: 0 0 10px; }
-  #hero p.fine { max-width: 60ch; font-size: 13.5px; color: var(--muted); margin: 0 0 28px; }
+  #hero p.lede { max-width: 56ch; font-size: 17px; margin: 0 0 10px; }
+  #hero p.fine { max-width: 56ch; font-size: 13px; color: var(--muted); margin: 0 0 26px; }
+  .hero-gauge { position: relative; }
+  #gaugecv { display: block; width: 100%; aspect-ratio: 1 / 0.74; }
+  .gauge-cap { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--muted) 80%, transparent); text-align: center; margin-top: 4px; max-width: 46ch; margin-left: auto; margin-right: auto; line-height: 1.6; }
   .cta-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   button.run {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -79,10 +86,10 @@
     background: none; border: 1px solid var(--edge); padding: 10px 14px; cursor: pointer; border-radius: 2px;
   }
   .ghost:hover { color: var(--ink); border-color: var(--ink); }
-  .hero-stats { display: flex; gap: 0; border: 1px solid var(--edge); background: var(--panel); margin-top: 36px; flex-wrap: wrap; }
-  .hs { flex: 1 1 140px; padding: 14px 16px 12px; border-right: 1px solid var(--edge); min-width: 130px; }
+  .hero-stats { display: flex; gap: 8px; border-top: 1px solid var(--edge); margin-top: 44px; padding-top: 20px; flex-wrap: wrap; }
+  .hs { flex: 1 1 140px; padding: 0 16px 0 0; min-width: 130px; }
   .hs:last-child { border-right: none; }
-  .hs .n { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: 22px; }
+  .hs .n { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: clamp(24px, 3vw, 36px); letter-spacing: -0.02em; }
   .hs .l { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 9.5px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
 
   /* run sheet */
@@ -205,12 +212,21 @@
   </header>
 
   <section id="hero">
+    <div class="eyebrow"><span class="edot"></span>webgpu · fp64-gated · receipts attached</div>
     <h1>How fast is your machine, <span class="dim">really?</span></h1>
-    <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI — the number that decides your tokens/s. It also checks your GPU driver for the <b>subgroup bug</b> that makes some in-browser LLMs silently produce garbage.</p>
-    <p class="fine">No model download: the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes per token). No account, no ads, no telemetry. Your numbers stay in this browser until you choose to post them, and the community board is one click of sharing, not collection. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
-    <div class="cta-row">
-      <button class="run" id="runbtn">RUN THE TEST →</button>
-      <button class="ghost" id="methbtn">methodology</button>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI — the number that decides your tokens/s. It also checks your GPU driver for the <b>subgroup bug</b> that makes some in-browser LLMs silently produce garbage.</p>
+        <p class="fine">No model download: the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes per token). No account, no ads, no telemetry. Your numbers stay in this browser until you choose to post them, and the community board is one click of sharing, not collection. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
+        <div class="cta-row">
+          <button class="run" id="runbtn">RUN THE TEST →</button>
+          <button class="ghost" id="methbtn">methodology</button>
+        </div>
+      </div>
+      <div class="hero-gauge">
+        <canvas id="gaugecv"></canvas>
+        <div class="gauge-cap">the dial is the product: engines idle at 30-50% of the ceiling. the rest is headroom.</div>
+      </div>
     </div>
     <div class="hero-stats">
       <div class="hs"><div class="n num">~30 s</div><div class="l">full suite</div></div>
@@ -823,6 +839,99 @@ function animStop(finished) {
    down the sheet as each probe lands. */
 const GATE_ROWS = new Set(['dev', 'fill', 'ref', 'can']);
 const measSeen = {};
+/* ---------- hero gauge: the product story as an instrument dial ----------
+   Scale is % of YOUR ceiling (no fabricated absolutes). The 30-50% band is
+   the receipted cross-device finding for today's in-browser engines. */
+const gauge = { val: 0, t0: 0, raf: 0, idleT: 0 };
+const GAUGE_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawGauge() {
+  const cv = $('gaugecv');
+  if (!cv || !cv.clientWidth) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.clientWidth, H = W * 0.74;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const cs = getComputedStyle(document.documentElement);
+  const V = (n) => cs.getPropertyValue(n).trim();
+  const ink = V('--ink'), muted = V('--muted'), accent = V('--accent'), edge = V('--edge'), gridc = V('--grid');
+  const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  const R = Math.min(W * 0.44, (H - 36) / 1.55);
+  const cx = W / 2, cy = R + 14;
+  const a0 = 2.618, a1 = 0.524 + Math.PI * 2;           // 210° over the top to -30°
+  const ang = (f) => a0 + (a1 - a0) * f;
+  const px = (f, r) => [cx + r * Math.cos(ang(f)), cy + r * Math.sin(ang(f))];
+  // face: faint concentric arcs (chart-paper)
+  g.lineWidth = 1; g.strokeStyle = gridc;
+  for (const rr of [0.58, 0.73, 0.88]) { g.beginPath(); g.arc(cx, cy, R * rr, a0, a1); g.stroke(); }
+  // engines-today band (30-50%), drawn under the main arc
+  g.lineWidth = Math.max(7, R * 0.075); g.strokeStyle = 'color-mix(in srgb, ' + muted + ' 30%, transparent)';
+  g.beginPath(); g.arc(cx, cy, R, ang(0.30), ang(0.50)); g.stroke();
+  // main arc
+  g.lineWidth = 2; g.strokeStyle = edge;
+  g.beginPath(); g.arc(cx, cy, R, a0, a1); g.stroke();
+  // ticks
+  for (let i = 0; i <= 20; i++) {
+    const f = i / 20, major = i % 5 === 0;
+    const [x1, y1] = px(f, R), [x2, y2] = px(f, R - (major ? R * 0.085 : R * 0.045));
+    g.lineWidth = major ? 2 : 1; g.strokeStyle = major ? ink : muted;
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    if (major) {
+      const [tx, ty] = px(f, R - R * 0.17);
+      g.fillStyle = muted; g.font = mono(Math.max(9, R * 0.052));
+      const lbl = String(i * 5);
+      g.fillText(lbl, tx - g.measureText(lbl).width / 2, ty + 3);
+    }
+  }
+  // ceiling marker at 100%
+  const [cx1, cy1] = px(1, R * 1.04), [cx2, cy2] = px(1, R * 0.82);
+  g.lineWidth = 3; g.strokeStyle = accent;
+  g.beginPath(); g.moveTo(cx1, cy1); g.lineTo(cx2, cy2); g.stroke();
+  g.fillStyle = accent; g.font = mono(Math.max(9, R * 0.055), 700);
+  const cl = 'CEILING';
+  g.fillText(cl, cx1 - g.measureText(cl).width / 2, cy1 + 13);
+  // engines label at band midpoint
+  const [ex, ey] = px(0.40, R * 1.1);
+  g.fillStyle = muted; g.font = mono(Math.max(8.5, R * 0.048));
+  const el = 'ENGINES TODAY';
+  g.fillText(el, ex - g.measureText(el).width / 2, ey);
+  // needle
+  const f = Math.max(0, Math.min(1.004, gauge.val));
+  const [nx, ny] = px(f, R * 0.86);
+  g.strokeStyle = accent; g.lineWidth = 2.5;
+  g.shadowColor = accent; g.shadowBlur = 10;
+  g.beginPath(); g.moveTo(cx, cy); g.lineTo(nx, ny); g.stroke();
+  g.shadowBlur = 0;
+  g.fillStyle = ink; g.beginPath(); g.arc(cx, cy, R * 0.035, 0, 7); g.fill();
+  // hub caption
+  g.fillStyle = muted; g.font = mono(Math.max(9, R * 0.05));
+  const hc = '% OF YOUR CEILING';
+  g.fillText(hc, cx - g.measureText(hc).width / 2, cy - R * 0.12);
+}
+function gaugeFrame(now) {
+  gauge.raf = requestAnimationFrame(gaugeFrame);
+  if (!gauge.t0) gauge.t0 = now;
+  const t = (now - gauge.t0) / 1500;
+  if (t < 1) {
+    const e = 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2); // ease-out with overshoot
+    gauge.val = Math.max(0, e);
+  } else {
+    gauge.idleT += 0.016;
+    gauge.val = 1 + Math.sin(gauge.idleT * 1.7) * 0.004;               // instrument idle wobble
+  }
+  drawGauge();
+  if (t > 8) { cancelAnimationFrame(gauge.raf); gauge.val = 1; drawGauge(); }
+}
+function gaugeInit() {
+  if (!$('gaugecv')) return;
+  if (GAUGE_STILL) { gauge.val = 1; drawGauge(); return; }
+  gauge.raf = requestAnimationFrame(gaugeFrame);
+  addEventListener('resize', drawGauge);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => drawGauge());
+}
+gaugeInit();
+
 function probeRow(id, name, sub, idx) {
   const div = document.createElement('div');
   div.className = 'probe'; div.id = 'row-' + id;
