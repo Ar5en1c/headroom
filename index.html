@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HEADROOM — how fast is your machine, really?</title>
-<meta name="description" content="A 30-second WebGPU test that measures your device's real memory-bandwidth ceiling for local AI, checks your driver for the subgroup bug, and tells you your tokens/s headroom. No model download. No data leaves your machine.">
+<meta name="description" content="A 30-second WebGPU test that measures your device's real memory-bandwidth ceiling for local AI, checks your driver for the subgroup bug, and ranks your machine on the community board. No model download, no account, no telemetry.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23101319'/%3E%3Ctext x='10' y='46' font-family='monospace' font-size='40' font-weight='700' fill='%23E8EAF0'%3EH%3C/text%3E%3Crect x='40' y='38' width='16' height='8' fill='%23FF5A3C'/%3E%3C/svg%3E">
 <meta property="og:title" content="HEADROOM — how fast is your machine, really?">
 <meta property="og:description" content="30-second WebGPU test: your device's real memory-bandwidth ceiling for local AI, FP64-gated kernels, and a canary that catches the silent GPU corruption still live in current Chrome.">
@@ -87,6 +87,9 @@
 
   /* run sheet */
   #runsheet { display: none; padding-top: 34px; }
+  #animwrap { border: 1px solid var(--edge); background: var(--panel); margin: 16px 0 6px; }
+  #animcv { display: block; width: 100%; height: 128px; }
+  #animcap { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--edge); min-height: 2.6em; }
   .runhead { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
   .runhead h2 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   #devline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); letter-spacing: 0.04em; }
@@ -175,13 +178,13 @@
 
   <header class="plate">
     <div class="wordmark">HEADROOM<span class="c">_</span></div>
-    <div class="sub">local ai · measured · nothing leaves your machine</div>
+    <div class="sub">local ai · measured · no account, no telemetry</div>
   </header>
 
   <section id="hero">
     <h1>How fast is your machine, <span class="dim">really?</span></h1>
     <p class="lede">A 30-second test of your device's true memory-bandwidth ceiling for local AI — the number that decides your tokens/s. It also checks your GPU driver for the <b>subgroup bug</b> that makes some in-browser LLMs silently produce garbage.</p>
-    <p class="fine">No model download — the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes-per-token). No account, no ads, no telemetry: measurements stay in your browser unless you share them. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
+    <p class="fine">No model download: the probes use synthetic weights (only ~0.4 MB of public tensor metadata is fetched to derive exact bytes per token). No account, no ads, no telemetry. Your numbers stay in this browser until you choose to post them, and the community board is one click of sharing, not collection. Requires WebGPU (Chrome/Edge on desktop, recent Android Chrome).</p>
     <div class="cta-row">
       <button class="run" id="runbtn">RUN THE TEST →</button>
       <button class="ghost" id="methbtn">methodology</button>
@@ -197,6 +200,10 @@
   <section id="runsheet">
     <div class="runhead"><h2>RUN SHEET</h2><span id="devline" class="num">detecting device…</span></div>
     <div id="statusline">preparing…</div>
+    <div id="animwrap">
+      <canvas id="animcv"></canvas>
+      <div id="animcap">setting up: deterministic weights, FP64 referee on the CPU</div>
+    </div>
     <div id="probes"></div>
   </section>
 
@@ -217,12 +224,13 @@
           <tr><td>8b class q4 · ≈4.7 GB dense</td><td class="v" id="p-8b">—</td></tr>
           <tr><td>bonsai 27b 1-bit · 3.8 GB dense</td><td class="v" id="p-27b">—</td></tr>
         </table>
-        <div class="foot"><span id="c-canaryline">SUBGROUP CANARY: —</span><span id="c-ver">HEADROOM</span></div>
+        <div class="foot"><span id="c-canaryline">SUBGROUP CANARY: —</span><span id="c-rank"></span><span id="c-ver">HEADROOM</span></div>
       </div>
       <div class="actions">
         <button class="run" id="pngbtn">DOWNLOAD SHARE CARD (PNG)</button>
         <button class="ghost" id="jsonbtn">download JSON receipt</button>
         <button class="ghost" id="copybtn">copy JSON receipt</button>
+        <button class="ghost" id="forumbtn">copy result (forum text)</button>
         <button class="ghost" id="againbtn">run again</button>
         <button class="ghost" id="importbtn">import receipt (json)</button>
         <input type="file" id="importfile" accept="application/json,.json" multiple hidden>
@@ -693,7 +701,96 @@ function relErr(ref, got) {
   return Math.abs(ref - got) / denom;
 }
 function fmtGB(x) { return x >= 100 ? x.toFixed(0) : x.toFixed(1); }
-function status(msg) { $('statusline').textContent = msg; }
+function status(msg) { $('statusline').textContent = msg; animPhase(msg); }
+
+/* ---------- run-time explainer: an instrument diagram of decode ----------
+   Drawn on a 2D canvas at ~15 fps from the run's real byte counter. It
+   freezes (and says so) while a timed block is in flight, so the decoration
+   never competes with the measurement. */
+const anim = { bytes: 0, hold: false, phase: 'boot', running: false, raf: 0, last: 0, t: 0, cap: '' };
+const ANIM_CAPS = {
+  boot: 'setting up: deterministic weights on the GPU, an FP64 referee on the CPU',
+  pipe: 'measuring the pipe: how many bytes per second move between VRAM and the GPU cores',
+  token: 'this is one token of an LLM: every active weight streams through the GPU, once per token. tok/s ceiling = pipe speed / bytes per token',
+  canary: "checking your driver's math: the reduce shape real engines shipped, 20 trials against the FP64 referee",
+  manifest: "reading the model's tensor map: which bytes each token actually touches",
+  done: 'run complete'
+};
+function animPhase(msg) {
+  const m = msg.toLowerCase();
+  if (m.startsWith('done') || m.startsWith('stopped')) { animStop(m.startsWith('done')); return; }
+  if (m.includes('canary')) anim.phase = 'canary';
+  else if (m.includes('manifest')) anim.phase = 'manifest';
+  else if (m.includes('gemv')) anim.phase = 'token';
+  else if (m.includes('copy bandwidth') || m.includes('triad') || m.includes('read ceiling')) anim.phase = 'pipe';
+  else if (m.includes('adapter') || m.includes('allocating') || m.includes('filling') || m.includes('references')) anim.phase = 'boot';
+}
+const ANIM_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animFrame(now) {
+  if (!anim.running) return;
+  anim.raf = requestAnimationFrame(animFrame);
+  if (now - anim.last < 66) return;
+  const dt = Math.min(0.2, (now - anim.last) / 1000);
+  anim.last = now;
+  if (!anim.hold && !ANIM_STILL) anim.t += dt * (anim.phase === 'boot' ? 0.25 : anim.phase === 'canary' ? 0.5 : 1);
+  animDraw();
+  const cap = ANIM_CAPS[anim.phase] + (anim.hold ? ' · holding still: timed block in flight' : '');
+  if (cap !== anim.cap) { anim.cap = cap; $('animcap').textContent = cap; }
+}
+function animDraw() {
+  const cv = $('animcv');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.clientWidth, H = 128;
+  if (!W) return;
+  if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cs = getComputedStyle(document.documentElement);
+  const ink = cs.getPropertyValue('--ink').trim(), muted = cs.getPropertyValue('--muted').trim(),
+        accent = cs.getPropertyValue('--accent').trim(), edge = cs.getPropertyValue('--edge').trim();
+  g.clearRect(0, 0, W, H);
+  const mono = (px, w) => (w || 400) + ' ' + px + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  const pad = 16, bw = Math.min(120, W * 0.22), bh = 56, by = 18;
+  g.strokeStyle = edge; g.lineWidth = 1;
+  g.strokeRect(pad + 0.5, by + 0.5, bw, bh);
+  g.strokeRect(W - pad - bw + 0.5, by + 0.5, bw, bh);
+  g.fillStyle = ink; g.font = mono(12, 700);
+  g.fillText('WEIGHTS', pad + 12, by + 24);
+  g.fillText('GPU', W - pad - bw + 12, by + 24);
+  g.fillStyle = muted; g.font = mono(10);
+  g.fillText('VRAM', pad + 12, by + 40);
+  g.fillText('COMPUTE', W - pad - bw + 12, by + 40);
+  const x0 = pad + bw, x1 = W - pad - bw, y = by + bh / 2;
+  g.strokeStyle = edge;
+  g.beginPath(); g.moveTo(x0, y - 9); g.lineTo(x1, y - 9); g.stroke();
+  g.beginPath(); g.moveTo(x0, y + 9); g.lineTo(x1, y + 9); g.stroke();
+  const span = x1 - x0, n = 7;
+  g.fillStyle = accent;
+  for (let i = 0; i < n; i++) {
+    const f = ((anim.t * 0.9 + i / n) % 1);
+    g.fillRect(x0 + f * (span - 16), y - 5, 14, 10);
+  }
+  g.fillStyle = ink; g.font = mono(17, 700);
+  const gb = anim.bytes / 1e9;
+  g.fillText('≈' + (gb >= 100 ? gb.toFixed(0) : gb.toFixed(1)) + ' GB streamed', pad, H - 18);
+  g.fillStyle = muted; g.font = mono(10);
+  const tag = 'MEASURED LIVE';
+  g.fillText(tag, W - pad - g.measureText(tag).width, H - 18);
+}
+function animStart() {
+  anim.bytes = 0; anim.t = 0; anim.phase = 'boot'; anim.cap = ''; anim.hold = false;
+  anim.running = true; anim.last = performance.now();
+  $('animwrap').style.display = 'block';
+  anim.raf = requestAnimationFrame(animFrame);
+}
+function animStop(finished) {
+  if (!anim.running) return;
+  anim.running = false;
+  cancelAnimationFrame(anim.raf);
+  anim.hold = false;
+  animDraw();
+  if (finished) $('animcap').textContent = 'run complete: ≈' + (anim.bytes / 1e9).toFixed(1) + ' GB streamed through your GPU for this measurement';
+}
 
 function probeRow(id, name, sub) {
   const div = document.createElement('div');
@@ -776,6 +873,7 @@ async function timeDispatch(device, pipeline, bindgroup, wgX, wgY, opts) {
     const t0 = performance.now();
     device.queue.submit([cb]);
     await device.queue.onSubmittedWorkDone();
+    anim.bytes += (opts.bytes || 0) * iters;
     return performance.now() - t0;
   };
   const implausible = (ms) => opts.bytes && opts.sanityGBps && (opts.bytes / (ms * 1e6)) > opts.sanityGBps * 1.5;
@@ -783,7 +881,9 @@ async function timeDispatch(device, pipeline, bindgroup, wgX, wgY, opts) {
   const est = (await runBlock(4)) / 4;
   const iters = Math.max(2, Math.min(2048, Math.round(TARGET_BLOCK_MS / Math.max(est, 0.05))));
   const times = [];
+  anim.hold = true;
   for (let r = 0; r < REPEATS; r++) times.push((await runBlock(iters)) / iters);
+  anim.hold = false;
   let msPerIter = median(times);
   let method = iters + '×' + REPEATS + ' amortized, med ' + msPerIter.toFixed(3) + ' ms';
   const verifyFailed = opts.verify ? !(await opts.verify()) : false;
@@ -797,7 +897,9 @@ async function timeDispatch(device, pipeline, bindgroup, wgX, wgY, opts) {
     };
     await single(); // warmup
     const st = [];
+    anim.hold = true;
     for (let r = 0; r < REPEATS; r++) st.push(await single());
+    anim.hold = false;
     msPerIter = median(st);
     method = 'per-submit fallback ×' + REPEATS + ' (amortized block was dropped/implausible; includes submit overhead), med ' + msPerIter.toFixed(3) + ' ms';
     const stillBad = implausible(msPerIter) || (opts.verify ? !(await opts.verify()) : false);
@@ -812,6 +914,7 @@ function receipt(name, fields) { state.receipts.push({ probe: name, ...fields })
 async function runSuite() {
   $('hero').style.display = 'none';
   $('runsheet').style.display = 'block';
+  animStart();
   $('err').style.display = 'none';
   $('probes').innerHTML = '';
   state.receipts = [];
@@ -1238,6 +1341,7 @@ async function runSuite() {
     })),
   };
   renderResult();
+  updateRank();
   [bufA, bufB, bufC].forEach(b => b.destroy()); // keep W/X/Y for potential re-run? no — full re-run realloc; free the big ones
 }
 
@@ -1443,8 +1547,32 @@ $('copybtn').addEventListener('click', async () => {
   setTimeout(() => { $('copybtn').textContent = 'copy JSON receipt'; }, 1500);
 });
 
+$('forumbtn').addEventListener('click', async () => {
+  const s = state.score, d = state.deviceInfo || {};
+  if (!s) return;
+  const dev = [d.vendor, d.architecture].filter(Boolean).join(' ') || 'gpu';
+  const best = s.efficiency >= 0.98 ? 'kernels saturate it' : 'best kernel ' + Math.round(s.efficiency * 100) + '% of it';
+  const pj = s.projections[0];
+  const e2b = pj.derived ? '~' + Math.round(pj.tokLo) + ' tok/s' : Math.round(pj.tokLo) + '-' + Math.round(pj.tokHi) + ' tok/s';
+  const can = s.canaryV2 === 'REPRODUCED' ? 'canary FAIL (driver corrupts the shipped subgroup reduce)'
+    : s.canaryV2 === 'PASS' ? 'canary PASS' : 'canary ' + (s.canary || 'n/a');
+  const txt = 'headroom (' + dev + '): read ceiling ' + fmtGB(s.readGBps) + ' GB/s, ' + best +
+    '; gemma 4 e2b ceiling ' + e2b + '; ' + can + '. run yours: https://ar5en1c.github.io/headroom/';
+  await navigator.clipboard.writeText(txt);
+  $('forumbtn').textContent = 'copied ✓';
+  setTimeout(() => { $('forumbtn').textContent = 'copy result (forum text)'; }, 1500);
+});
+
+function updateRank() {
+  const el = $('c-rank');
+  if (!el || !state.score || !lbRows.length) return;
+  const better = lbRows.filter(r => r.readGBps > state.score.readGBps).length;
+  el.textContent = '#' + (better + 1) + ' of ' + (lbRows.length + 1) + ' on the board';
+}
+
 /* ---------- community leaderboard (opt-in, hardware rows only) ---------- */
 const LB_ISSUE_URL = 'https://github.com/Ar5en1c/headroom/issues/new?template=leaderboard.yml';
+let lbRows = [];
 function lbCanary(row) {
   if (row.canaryV2 === 'REPRODUCED' || row.canary === 'FAIL') return ['FAIL', 'lb-fail'];
   if (row.canaryV2 === 'PASS' || row.canary === 'PASS') return ['PASS', 'lb-pass'];
@@ -1457,6 +1585,7 @@ async function loadLeaderboard() {
     if (!r.ok) return;
     const j = await r.json();
     if (!j.rows || !j.rows.length) return;
+    lbRows = j.rows;
     const tb = document.querySelector('#lbtable tbody');
     tb.textContent = '';
     for (const row of j.rows) {
