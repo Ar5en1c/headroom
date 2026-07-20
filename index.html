@@ -87,27 +87,50 @@
 
   /* run sheet */
   #runsheet { display: none; padding-top: 34px; }
-  #animwrap { border: 1px solid var(--edge); background: var(--panel); margin: 16px 0 6px; }
+  :root { --lift: 0 28px 70px -38px rgba(23, 24, 26, 0.35); --sheen: color-mix(in srgb, var(--ink) 3%, transparent); }
+  @media (prefers-color-scheme: dark) { :root { --lift: 0 32px 80px -36px rgba(0, 0, 0, 0.7); --sheen: rgba(255, 255, 255, 0.03); } }
+  #animwrap { border: 1px solid var(--edge); margin: 16px 0 6px; box-shadow: var(--lift);
+    background: radial-gradient(ellipse at 50% -30%, var(--sheen), transparent 60%), var(--panel); }
   #animcv { display: block; width: 100%; height: 128px; }
   #animcap { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--edge); min-height: 2.6em; }
   .runhead { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
   .runhead h2 { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   #devline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); letter-spacing: 0.04em; }
-  #probes { border: 1px solid var(--edge); background: var(--panel); }
-  .probe { display: grid; grid-template-columns: 200px 1fr 130px; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--edge); align-items: center; }
+  #probes { border: 1px solid var(--edge); box-shadow: var(--lift);
+    background: radial-gradient(ellipse at 50% -10%, var(--sheen), transparent 45%), var(--panel); }
+  .probe { display: grid; grid-template-columns: 200px 1fr 150px; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--edge); align-items: center;
+    opacity: 0; animation: rowrise 0.34s ease forwards; animation-delay: var(--d, 0s); }
   .probe:last-child { border-bottom: none; }
   .probe .pname { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.04em; }
-  .probe .pname .sub { color: var(--muted); font-size: 10.5px; display: block; letter-spacing: 0.02em; }
-  .barwrap { height: 12px; background: color-mix(in srgb, var(--edge) 45%, transparent); position: relative; }
-  .bar { position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--accent); transition: width 0.6s ease; }
-  @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
-  .bar.pending { background: repeating-linear-gradient(90deg, var(--muted), var(--muted) 4px, transparent 4px, transparent 8px); opacity: 0.5; }
+  .probe .pname .sub { color: color-mix(in srgb, var(--muted) 72%, transparent); font-size: 10.5px; display: block; letter-spacing: 0.02em; }
+  .statuscell { display: flex; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 40%, transparent);
+    transition: background 0.3s ease, box-shadow 0.3s ease; }
+  .dot.run { background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 65%, transparent); animation: dotpulse 1.1s ease-in-out infinite; }
+  .dot.ok { background: var(--pass); box-shadow: 0 0 9px color-mix(in srgb, var(--pass) 55%, transparent); }
+  .dot.bad { background: var(--fail); box-shadow: 0 0 9px color-mix(in srgb, var(--fail) 60%, transparent); }
+  .barwrap { height: 7px; background: color-mix(in srgb, var(--edge) 45%, transparent); position: relative; overflow: hidden; }
+  .bar { position: absolute; inset: 0 auto 0 0; width: 0%; background: color-mix(in srgb, var(--ink) 50%, transparent); transition: width 0.6s ease; }
+  .bar.star { background: var(--accent); }
+  .bar.bad { background: var(--fail); }
+  .barwrap.live::after { content: ''; position: absolute; inset: 0; width: 40%;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 22%, transparent), transparent);
+    animation: sweep 1.3s linear infinite; }
+  .probe.live .pname { color: var(--ink); }
   .pval { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; text-align: right; }
+  .pval.landed { animation: rowrise 0.3s ease; }
   .pval .ok { color: var(--pass); font-weight: 700; }
   .pval .bad { color: var(--fail); font-weight: 700; }
   .pval .na { color: var(--na); }
-  @media (max-width: 640px) { .probe { grid-template-columns: 1fr 90px; } .barwrap { display: none; } }
+  @media (max-width: 640px) { .probe { grid-template-columns: 1fr 110px; } .barwrap, .statuscell { display: none; } }
   #statusline { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); padding: 10px 2px; letter-spacing: 0.05em; min-height: 34px; }
+  @keyframes rowrise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes dotpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes sweep { from { transform: translateX(-110%); } to { transform: translateX(280%); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .probe { opacity: 1; }
+  }
 
   /* result */
   #result { display: none; margin-top: 36px; }
@@ -766,10 +789,12 @@ function animDraw() {
   g.beginPath(); g.moveTo(x0, y + 9); g.lineTo(x1, y + 9); g.stroke();
   const span = x1 - x0, n = 7;
   g.fillStyle = accent;
+  g.shadowColor = accent; g.shadowBlur = 9;
   for (let i = 0; i < n; i++) {
     const f = ((anim.t * 0.9 + i / n) % 1);
     g.fillRect(x0 + f * (span - 16), y - 5, 14, 10);
   }
+  g.shadowBlur = 0;
   g.fillStyle = ink; g.font = mono(17, 700);
   const gb = anim.bytes / 1e9;
   g.fillText('≈' + (gb >= 100 ? gb.toFixed(0) : gb.toFixed(1)) + ' GB streamed', pad, H - 18);
@@ -792,18 +817,59 @@ function animStop(finished) {
   if (finished) $('animcap').textContent = 'run complete: ≈' + (anim.bytes / 1e9).toFixed(1) + ' GB streamed through your GPU for this measurement';
 }
 
-function probeRow(id, name, sub) {
+/* Gate rows carry a glow dot (pulsing while live, green/red when settled);
+   measurement rows carry a slim bar normalized against the best GB/s seen so
+   far, accent-colored only for the read-ceiling star. A live cursor advances
+   down the sheet as each probe lands. */
+const GATE_ROWS = new Set(['dev', 'fill', 'ref', 'can']);
+const measSeen = {};
+function probeRow(id, name, sub, idx) {
   const div = document.createElement('div');
   div.className = 'probe'; div.id = 'row-' + id;
-  div.innerHTML = '<div class="pname">' + name + '<span class="sub">' + sub + '</span></div>'
-    + '<div class="barwrap"><div class="bar pending" id="bar-' + id + '"></div></div>'
+  div.style.setProperty('--d', ((idx || 0) * 45) + 'ms');
+  const mid = GATE_ROWS.has(id)
+    ? '<div class="statuscell"><span class="dot" id="dot-' + id + '"></span></div>'
+    : '<div class="barwrap" id="wrap-' + id + '"><div class="bar' + (id === 'read' ? ' star' : '') + '" id="bar-' + id + '"></div></div>';
+  div.innerHTML = '<div class="pname">' + name + '<span class="sub">' + sub + '</span></div>' + mid
     + '<div class="pval num" id="val-' + id + '">…</div>';
   $('probes').appendChild(div);
 }
-function setProbe(id, frac, html, cls) {
+function renormBars() {
+  const vals = Object.values(measSeen);
+  if (!vals.length) return;
+  const max = Math.max(...vals);
+  for (const k in measSeen) {
+    const b = $('bar-' + k);
+    if (b) b.style.width = (measSeen[k] / max * 100).toFixed(1) + '%';
+  }
+}
+function advanceLive() {
+  for (const r of document.querySelectorAll('#probes .probe')) {
+    const v = r.querySelector('.pval');
+    if (v && v.textContent.trim() === '…') {
+      r.classList.add('live');
+      const d = r.querySelector('.dot'); if (d) d.classList.add('run');
+      const w = r.querySelector('.barwrap'); if (w) w.classList.add('live');
+      return;
+    }
+  }
+}
+function setProbe(id, gbps, html, cls) {
+  const row = $('row-' + id);
+  if (row) row.classList.remove('live');
+  const dot = $('dot-' + id);
+  if (dot) dot.className = 'dot ' + (cls === 'bad' ? 'bad' : html.indexOf('"na"') >= 0 ? '' : 'ok');
+  const wrap = $('wrap-' + id);
+  if (wrap) wrap.classList.remove('live');
   const bar = $('bar-' + id);
-  if (bar) { bar.classList.remove('pending'); bar.style.width = Math.max(2, Math.min(100, frac * 100)) + '%'; if (cls === 'bad') bar.style.background = 'var(--fail)'; }
-  $('val-' + id).innerHTML = html;
+  if (bar) {
+    if (cls === 'bad') bar.classList.add('bad');
+    if (typeof gbps === 'number' && isFinite(gbps) && gbps > 0) { measSeen[id] = gbps; renormBars(); }
+  }
+  const val = $('val-' + id);
+  val.innerHTML = html;
+  val.classList.add('landed');
+  advanceLive();
 }
 
 /* ---------- GPU plumbing ---------- */
@@ -917,6 +983,7 @@ async function runSuite() {
   animStart();
   $('err').style.display = 'none';
   $('probes').innerHTML = '';
+  for (const k in measSeen) delete measSeen[k];
   state.receipts = [];
 
   const rows = [
@@ -933,7 +1000,8 @@ async function runSuite() {
     ['g4', 'gemv · subgroup', 'subgroupAdd, uniform flow'],
     ['can', 'subgroup canary', 'guarded vs the shipped bare pattern'],
   ];
-  rows.forEach(r => probeRow(...r));
+  rows.forEach((r, i) => probeRow(r[0], r[1], r[2], i));
+  advanceLive();
 
   /* --- init --- */
   status('requesting adapter…');
@@ -941,7 +1009,7 @@ async function runSuite() {
   state.device = device; state.deviceInfo = deviceInfo;
   const devName = [deviceInfo.vendor, deviceInfo.architecture].filter(Boolean).join(' · ') || 'gpu (unnamed adapter)';
   $('devline').textContent = devName + (hasSubgroups ? ' · subgroups' : ' · no subgroups');
-  setProbe('dev', 1, '<span class="ok">OK</span>');
+  setProbe('dev', null, '<span class="ok">OK</span>');
   receipt('device', { result: devName, gate: 'n/a', detail: deviceInfo });
 
   /* --- shapes (adapt to limits) --- */
@@ -1025,7 +1093,7 @@ async function runSuite() {
       for (let k = 0; k < K; k++) maxe = Math.max(maxe, relErr(detVal(m * K + k, SEED_W), row[k]));
     }
     const pass_ = maxe < 1e-6;
-    setProbe('fill', 1, pass_ ? '<span class="ok">VERIFIED</span>' : '<span class="bad">MISMATCH</span>');
+    setProbe('fill', null, pass_ ? '<span class="ok">VERIFIED</span>' : '<span class="bad">MISMATCH</span>', pass_ ? undefined : 'bad');
     receipt('deterministic fill', { result: 'max rel err ' + maxe.toExponential(1), gate: pass_ ? 'PASS' : 'FAIL' });
     if (!pass_) throw { kind: 'FILL MISMATCH', msg: 'GPU-generated values do not match CPU regeneration — cannot trust any further number on this device.' };
   }
@@ -1049,7 +1117,7 @@ async function runSuite() {
   let refCan = 0;
   for (let i = 0; i < CAN_N; i++) refCan += detVal(i, SEED_C);
   const refMs = performance.now() - t0ref;
-  setProbe('ref', 1, '<span class="ok">READY</span>');
+  setProbe('ref', null, '<span class="ok">READY</span>');
   receipt('fp64 reference', { result: (M * K + CAN_N).toLocaleString() + ' values, ' + refMs.toFixed(0) + ' ms', gate: 'n/a' });
 
   /* --- copy bandwidth --- */
@@ -1071,7 +1139,7 @@ async function runSuite() {
     for (let r = 0; r < REPEATS; r++) times.push((await one(iters)) / iters);
     const ms = median(times), gbps = (2 * bytes) / (ms * 1e6);
     state.copyGBps = gbps;
-    setProbe('copy', 0.01, fmtGB(gbps) + ' GB/s');
+    setProbe('copy', gbps, fmtGB(gbps) + ' GB/s');
     receipt('copy bandwidth', { result: fmtGB(gbps) + ' GB/s', bytes: 2 * bytes, timing: iters + '×' + REPEATS + ' med ' + ms.toFixed(3) + ' ms', gate: 'n/a' });
   }
 
@@ -1084,7 +1152,7 @@ async function runSuite() {
     const bytes = 3 * TRI_N4 * 16;
     const gbps = bytes / (t.msPerIter * 1e6);
     state.triadGBps = gbps;
-    setProbe('triad', 0.01, fmtGB(gbps) + ' GB/s');
+    setProbe('triad', gbps, fmtGB(gbps) + ' GB/s');
     receipt('triad (C=A+sB)', { result: fmtGB(gbps) + ' GB/s', bytes, timing: t.iters + '×' + t.repeats + ' med ' + t.msPerIter.toFixed(3) + ' ms', gate: 'n/a' });
   }
 
@@ -1104,7 +1172,7 @@ async function runSuite() {
       let got = 0; for (let i = 0; i < readWG; i++) got += partials[i];
       const err = relErr(refWSum, got);
       if (err > REL_TOL) {
-        setProbe('read', 1, '<span class="bad">GATE FAIL</span>');
+        setProbe('read', null, '<span class="bad">GATE FAIL</span>', 'bad');
         receipt('read ceiling', { result: 'rel err ' + err.toExponential(2), gate: 'FAIL — no number' });
       } else {
         const verifyRead = async () => {
@@ -1115,11 +1183,11 @@ async function runSuite() {
         const t = await timeDispatch(device, pRead, bgR, readWG, 1, { verify: verifyRead });
         const bytes = M * K * 4;
         if (t.anomaly) {
-          setProbe('read', 1, '<span class="bad">TIMING ANOMALY</span>', 'bad');
+          setProbe('read', null, '<span class="bad">TIMING ANOMALY</span>', 'bad');
           receipt('read ceiling ★', { result: 'timing anomaly — no number', timing: t.method, gate: 'PASS then unverifiable' });
         } else {
           readGBps = bytes / (t.msPerIter * 1e6);
-          setProbe('read', 1, '<b>' + fmtGB(readGBps) + ' GB/s</b>');
+          setProbe('read', readGBps, '<b>' + fmtGB(readGBps) + ' GB/s</b>');
           receipt('read ceiling ★', { result: fmtGB(readGBps) + ' GB/s', bytes, timing: t.method, gate: 'PASS (rel ' + err.toExponential(1) + '), re-verified post-timing' });
         }
       }
@@ -1138,7 +1206,7 @@ async function runSuite() {
   let bestGemv = 0, bestName = '';
   for (const rung of ladder) {
     if (rung.needsSg && !hasSubgroups) {
-      setProbe(rung.id, 0, '<span class="na">N/A — no subgroups</span>');
+      setProbe(rung.id, null, '<span class="na">N/A — no subgroups</span>');
       receipt(rung.name, { result: 'skipped', gate: 'n/a — feature absent' });
       continue;
     }
@@ -1161,7 +1229,7 @@ async function runSuite() {
       let maxe = 0;
       for (const [m, ref] of refY) maxe = Math.max(maxe, relErr(ref, y[m]));
       if (maxe > REL_TOL) {
-        setProbe(rung.id, 1, '<span class="bad">GATE FAIL ' + maxe.toExponential(1) + '</span>', 'bad');
+        setProbe(rung.id, null, '<span class="bad">GATE FAIL ' + maxe.toExponential(1) + '</span>', 'bad');
         receipt(rung.name, { result: 'max rel err ' + maxe.toExponential(2), gate: 'FAIL — no number' });
         continue;
       }
@@ -1175,14 +1243,14 @@ async function runSuite() {
       const t = await timeDispatch(device, rung.pipe, bgG, rung.wg[0], rung.wg[1],
         { bytes: bytesGemv, sanityGBps: readGBps > 0 ? readGBps : undefined, verify: verifyY });
       if (t.anomaly) {
-        setProbe(rung.id, 0, '<span class="bad">TIMING ANOMALY</span>', 'bad');
+        setProbe(rung.id, null, '<span class="bad">TIMING ANOMALY</span>', 'bad');
         receipt(rung.name, { result: 'timing anomaly — no number (correct output, unmeasurable on this stack)', timing: t.method, gate: 'PASS (rel ' + maxe.toExponential(1) + ')' });
         continue;
       }
       const gbps = bytesGemv / (t.msPerIter * 1e6);
       if (gbps > bestGemv) { bestGemv = gbps; bestName = rung.name; }
       const frac = readGBps > 0 ? gbps / readGBps : 0;
-      setProbe(rung.id, frac, fmtGB(gbps) + ' GB/s');
+      setProbe(rung.id, gbps, fmtGB(gbps) + ' GB/s');
       receipt(rung.name, { result: fmtGB(gbps) + ' GB/s (' + (frac * 100).toFixed(0) + '% of read ceiling)', bytes: bytesGemv, timing: t.method, gate: 'PASS (rel ' + maxe.toExponential(1) + '), re-verified post-timing' });
     }
   }
@@ -1191,7 +1259,7 @@ async function runSuite() {
   status('subgroup canary…');
   let canaryState = 'NA', canaryV2 = 'NA';
   if (!hasSubgroups) {
-    setProbe('can', 0, '<span class="na">N/A — no subgroups</span>');
+    setProbe('can', null, '<span class="na">N/A — no subgroups</span>');
     receipt('subgroup canary', { result: 'feature absent', gate: 'n/a' });
   } else {
     const runCan = async (pipe) => {
@@ -1302,11 +1370,11 @@ async function runSuite() {
     else if (outcomes.includes('PASS')) canaryState = 'PASS';
     else if (outcomes.length && outcomes.every(o => o === 'REJECTED')) canaryState = 'BLOCKED';
     else canaryState = 'ANOMALY';
-    if (canaryState === 'PASS') setProbe('can', 1, '<span class="ok">PASS' + (canaryV2 === 'PASS' ? ' — engine shape verified' : ' — tolerated') + '</span>');
-    else if (canaryState === 'BLOCKED') setProbe('can', 1, '<span class="ok">BLOCKED BY COMPILER (safe)</span>');
-    else if (canaryState === 'FAIL') setProbe('can', 1, '<span class="bad">FAIL — ' + (canaryV2 === 'REPRODUCED' ? 'engine shape corrupts here' : 'engines beware') + '</span>', 'bad');
-    else if (canaryState === 'ANOMALY') setProbe('can', 0, '<span class="na">INCONCLUSIVE</span>');
-    else setProbe('can', 1, '<span class="bad">CONTROL FAILED</span>', 'bad');
+    if (canaryState === 'PASS') setProbe('can', null, '<span class="ok">PASS' + (canaryV2 === 'PASS' ? ' — engine shape verified' : ' — tolerated') + '</span>');
+    else if (canaryState === 'BLOCKED') setProbe('can', null, '<span class="ok">BLOCKED BY COMPILER (safe)</span>');
+    else if (canaryState === 'FAIL') setProbe('can', null, '<span class="bad">FAIL — ' + (canaryV2 === 'REPRODUCED' ? 'engine shape corrupts here' : 'engines beware') + '</span>', 'bad');
+    else if (canaryState === 'ANOMALY') setProbe('can', null, '<span class="na">INCONCLUSIVE</span>');
+    else setProbe('can', null, '<span class="bad">CONTROL FAILED</span>', 'bad');
   }
 
   /* --- tensor manifests: turn estimates into derived denominators --- */
